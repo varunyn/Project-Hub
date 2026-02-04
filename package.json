@@ -1,0 +1,40 @@
+{
+  "name": "project-hub",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 4000",
+    "build": "next build",
+    "start": "next start",
+    "start:3030": "next start -p 3030",
+    "lint": "eslint .",
+    "format": "biome format --write .",
+    "check": "biome check --write .",
+    "check:ci": "biome ci"
+  },
+  "dependencies": {
+    "@tailwindcss/typography": "^0.5.16",
+    "next": "16.1.6",
+    "preline": "^4.0.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "simple-icons": "^16.7.0",
+    "swr": "^2.4.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.14",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "19.2.10",
+    "@types/react-dom": "19.2.3",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "overrides": {
+    "@types/react": "19.2.10",
+    "@types/react-dom": "19.2.3"
+  }
+}

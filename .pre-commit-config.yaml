@@ -1,0 +1,11 @@
+# prek / pre-commit compatible config — https://github.com/j178/prek
+# Run: prek install (already done). Hooks run on git commit.
+
+repos:
+  - repo: local
+    hooks:
+      - id: biome
+        name: biome check
+        entry: pnpm exec biome check --write
+        language: system
+        files: '\.(ts|tsx|js|jsx|json)$'

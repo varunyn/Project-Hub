@@ -1,0 +1,119 @@
+[
+  {
+    "id": "1",
+    "name": "Project Hub",
+    "path": "/Users/varuyada/Documents/React/project-tracker",
+    "techStack": [
+      "Next.js",
+      "TypeScript",
+      "TailwindCSS"
+    ],
+    "dateCreated": "2023-05-08",
+    "lastUpdated": "2026-02-03",
+    "readmePreview": "A simple app to track all my development projects",
+    "url": "",
+    "status": "in progress",
+    "pinned": false
+  },
+  {
+    "name": "Summary Generator",
+    "path": "/Users/varuyada/Documents/Python/oci-content-summary-main/streamlit_app",
+    "techStack": [
+      "python"
+    ],
+    "readmePreview": "",
+    "url": "",
+    "status": "completed",
+    "id": "1746728370396",
+    "dateCreated": "2025-05-08",
+    "lastUpdated": "2025-05-08"
+  },
+  {
+    "name": "List Gen AI models",
+    "path": "/Users/varuyada/Documents/Python/list_genai_models",
+    "techStack": [
+      "python"
+    ],
+    "readmePreview": "",
+    "url": "",
+    "status": "completed",
+    "id": "1746729038163",
+    "dateCreated": "2025-05-08",
+    "lastUpdated": "2025-05-08"
+  },
+  {
+    "name": "Aspect Ratio",
+    "path": "/Users/varuyada/Documents/Python/AspectRatioVideos",
+    "techStack": [
+      "python"
+    ],
+    "readmePreview": "",
+    "url": "",
+    "status": "completed",
+    "id": "1747354075077",
+    "dateCreated": "2025-05-16",
+    "lastUpdated": "2025-05-16",
+    "githubUrl": "https://github.com/varunyn/video-organizer"
+  },
+  {
+    "name": "Nextjs Gen AI chatbot",
+    "path": "/Users/varuyada/Documents/AI Tools/nextjs-oci-openai",
+    "techStack": [
+      "Next.js"
+    ],
+    "readmePreview": "",
+    "url": "",
+    "status": "completed",
+    "id": "1765732565681",
+    "dateCreated": "2025-12-14",
+    "lastUpdated": "2025-12-14"
+  },
+  {
+    "name": "23ai Knowledge Base",
+    "path": "/Users/varuyada/Documents/AI Tools/oci rag with vector db",
+    "techStack": [
+      "ai"
+    ],
+    "readmePreview": "",
+    "url": "",
+    "status": "completed",
+    "id": "1769558098872",
+    "dateCreated": "2026-01-27",
+    "lastUpdated": "2026-01-28"
+  },
+  {
+    "id": "1770056870728",
+    "name": "git-updates",
+    "path": "/Users/varuyada/Documents/AI Tools/git-digest",
+    "techStack": [
+      "Python",
+      "FastMCP"
+    ],
+    "dateCreated": "2026-02-02",
+    "lastUpdated": "2026-02-04",
+    "readmePreview": "Fetch latest git updates (recent commits and releases/tags) from repositories you provide and generate a text summary. Designed to run as a cron job. Includes CLI, AI summary via Ollama, and MCP server (get_git_updates, list_tracked_repos).",
+    "url": "",
+    "githubUrl": "",
+    "status": "completed"
+  },
+  {
+    "id": "1770057138881",
+    "name": "Custom RAG Agent App",
+    "path": "/Users/varuyada/Documents/AI Tools/custom-rag-agent-app",
+    "techStack": [
+      "Python",
+      "LangGraph",
+      "Oracle 23AI",
+      "OCI GenAI",
+      "FastMCP",
+      "Streamlit",
+      "Next.js"
+    ],
+    "dateCreated": "2026-02-02",
+    "lastUpdated": "2026-02-02",
+    "readmePreview": "Production-ready RAG agent with LangGraph, Oracle 23AI Vector Store, and OCI Generative AI. Multi-step workflow for document Q&A: vector search, reranking, streaming responses, MCP servers; Streamlit UI and Next.js frontend.",
+    "url": "",
+    "githubUrl": "",
+    "status": "completed"
+  }
+]
