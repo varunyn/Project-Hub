@@ -1,0 +1,54 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build
+.next
+out
+dist
+build
+
+# Git and IDE
+.git
+.gitignore
+.cursor
+.vscode
+*.swp
+*.swo
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and temp
+*.log
+logs.txt
+*.pid
+app.pid
+
+# Docs and misc
+README.md
+docs
+*.md
+!package.json
+
+# Scripts not needed in image
+start.sh
+stop.sh
+mcp
+stagewise.json
+
+# Python / uv (not used by Next.js in image)
+.venv
+__pycache__
+*.pyc
+pyproject.toml
+uv.lock
+.python-version
+
+# Tests and tooling
+coverage
+.nyc_output
+.eslintcache
+.pre-commit-config.yaml
