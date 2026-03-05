@@ -29,6 +29,9 @@ package-lock.json
 app.pid
 logs.txt
 
+# local project data (user-specific, do not commit)
+app/data/projects.json
+
 # debug
 npm-debug.log*
 yarn-debug.log*
