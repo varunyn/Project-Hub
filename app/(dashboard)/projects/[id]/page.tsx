@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { siCursor } from "simple-icons";
 import useSWR from "swr";
 import { pushRecentProjectId } from "../../../components/Sidebar";
@@ -34,6 +34,9 @@ export default function ProjectDetailPage() {
   const { projects } = useProjects();
   const [copyPathFeedback, setCopyPathFeedback] = useState(false);
   const [tagInput, setTagInput] = useState("");
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const [tagHighlightIndex, setTagHighlightIndex] = useState(0);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
   const [noteInput, setNoteInput] = useState("");
   const [goalInput, setGoalInput] = useState("");
 
@@ -46,6 +49,38 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (id) pushRecentProjectId(id);
   }, [id]);
+
+  const allTagsFromProjects = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of projects) {
+      for (const t of p.tags ?? []) set.add(t);
+    }
+    return Array.from(set).toSorted();
+  }, [projects]);
+
+  const currentProjectTags = useMemo(() => new Set(project?.tags ?? []), [project?.tags]);
+
+  const allTagsLowerSet = useMemo(
+    () => new Set(allTagsFromProjects.map((t) => t.toLowerCase())),
+    [allTagsFromProjects],
+  );
+
+  const tagSuggestions = useMemo(() => {
+    const q = tagInput.trim().toLowerCase();
+    const existing = allTagsFromProjects.filter(
+      (t) => !currentProjectTags.has(t) && (!q || t.toLowerCase().includes(q)),
+    );
+    const canCreateNew =
+      tagInput.trim() !== "" &&
+      !currentProjectTags.has(tagInput.trim()) &&
+      !allTagsLowerSet.has(tagInput.trim().toLowerCase());
+    return { existing, canCreateNew, newTag: tagInput.trim() };
+  }, [allTagsFromProjects, currentProjectTags, allTagsLowerSet, tagInput]);
+
+  const tagOptionCount = tagSuggestions.existing.length + (tagSuggestions.canCreateNew ? 1 : 0);
+
+  const effectiveHighlightIndex =
+    tagOptionCount > 0 ? Math.min(tagHighlightIndex, tagOptionCount - 1) : 0;
 
   const sortedProjects = useMemo(
     () =>
@@ -114,13 +149,28 @@ export default function ProjectDetailPage() {
     refetch();
   }, [project, updateProject, refetch]);
 
-  const handleAddTag = useCallback(async () => {
-    const t = tagInput.trim();
-    if (!t || !project) return;
-    const tags = [...(project.tags ?? []), t];
-    await updateProject({ tags });
-    setTagInput("");
-  }, [tagInput, project, updateProject]);
+  useEffect(() => {
+    if (!tagDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
+        setTagDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [tagDropdownOpen]);
+
+  const handleAddTag = useCallback(
+    async (tagToAdd?: string) => {
+      const t = (tagToAdd ?? tagInput).trim();
+      if (!t || !project) return;
+      const tags = [...(project.tags ?? []), t];
+      await updateProject({ tags });
+      setTagInput("");
+      setTagDropdownOpen(false);
+    },
+    [tagInput, project, updateProject],
+  );
 
   const handleRemoveTag = useCallback(
     async (tag: string) => {
@@ -347,16 +397,118 @@ export default function ProjectDetailPage() {
                 <span className="text-sm text-slate-500">No tags yet.</span>
               )}
             </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Add tag..."
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddTag()}
-                className={`flex-1 max-w-xs ${inputClass}`}
-              />
-              <button type="button" onClick={handleAddTag} className={btnPrimary}>
+            <div className="flex gap-2 relative" ref={tagDropdownRef}>
+              <div className="flex-1 max-w-xs relative">
+                <input
+                  type="text"
+                  placeholder="Add tag... (choose existing or type new)"
+                  value={tagInput}
+                  onChange={(e) => {
+                    setTagInput(e.target.value);
+                    setTagHighlightIndex(0);
+                    setTagDropdownOpen(true);
+                  }}
+                  onFocus={() => setTagDropdownOpen(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (tagOptionCount === 0) {
+                        handleAddTag();
+                        return;
+                      }
+                      if (
+                        tagSuggestions.canCreateNew &&
+                        effectiveHighlightIndex === tagSuggestions.existing.length
+                      ) {
+                        handleAddTag(tagSuggestions.newTag);
+                        return;
+                      }
+                      const existing = tagSuggestions.existing[effectiveHighlightIndex];
+                      if (existing != null) {
+                        handleAddTag(existing);
+                        return;
+                      }
+                      handleAddTag();
+                      return;
+                    }
+                    if (e.key === "Escape") {
+                      setTagDropdownOpen(false);
+                      return;
+                    }
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setTagHighlightIndex((i) => (i + 1) % tagOptionCount);
+                      return;
+                    }
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setTagHighlightIndex((i) => (tagOptionCount + i - 1) % tagOptionCount);
+                      return;
+                    }
+                  }}
+                  className={inputClass}
+                  autoComplete="off"
+                  aria-autocomplete="list"
+                  aria-expanded={tagDropdownOpen}
+                  aria-controls="tag-listbox"
+                  aria-activedescendant={
+                    tagDropdownOpen && tagOptionCount > 0
+                      ? `tag-opt-${effectiveHighlightIndex}`
+                      : undefined
+                  }
+                  role="combobox"
+                  aria-label="Add or select a tag"
+                />
+                {tagDropdownOpen && tagOptionCount > 0 && (
+                  <div
+                    id="tag-listbox"
+                    role="listbox"
+                    className="absolute z-10 mt-1 w-full max-h-48 overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-slate-900/5"
+                  >
+                    {tagSuggestions.existing.map((tag, i) => (
+                      <div
+                        key={tag}
+                        id={`tag-opt-${i}`}
+                        role="option"
+                        tabIndex={-1}
+                        aria-selected={effectiveHighlightIndex === i}
+                        className={`cursor-pointer px-3 py-2 text-sm ${
+                          effectiveHighlightIndex === i
+                            ? "bg-blue-50 text-blue-900"
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleAddTag(tag);
+                        }}
+                      >
+                        {tag}
+                      </div>
+                    ))}
+                    {tagSuggestions.canCreateNew && (
+                      <div
+                        id={`tag-opt-${tagSuggestions.existing.length}`}
+                        role="option"
+                        tabIndex={-1}
+                        aria-selected={effectiveHighlightIndex === tagSuggestions.existing.length}
+                        className={`cursor-pointer px-3 py-2 text-sm border-t border-slate-100 ${
+                          effectiveHighlightIndex === tagSuggestions.existing.length
+                            ? "bg-blue-50 text-blue-900"
+                            : "text-slate-600 hover:bg-slate-50"
+                        }`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleAddTag(tagSuggestions.newTag);
+                        }}
+                      >
+                        <span className="text-slate-500">Create new tag:</span>{" "}
+                        {tagSuggestions.newTag}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <button type="button" onClick={() => handleAddTag()} className={btnPrimary}>
                 Add
               </button>
             </div>

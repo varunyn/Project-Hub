@@ -13,6 +13,9 @@ interface SearchBarProps {
   projectTypeFilter?: string | null;
   onFilterByProjectType?: (type: string | null) => void;
   allProjectTypes?: string[];
+  tagFilter?: string | null;
+  onFilterByTag?: (tag: string | null) => void;
+  allTags?: string[];
 }
 
 export default function SearchBar({
@@ -26,10 +29,16 @@ export default function SearchBar({
   projectTypeFilter = null,
   onFilterByProjectType,
   allProjectTypes = [],
+  tagFilter = null,
+  onFilterByTag,
+  allTags = [],
 }: SearchBarProps) {
   const [techPopoverOpen, setTechPopoverOpen] = useState(false);
   const [techSearch, setTechSearch] = useState("");
   const techPopoverRef = useRef<HTMLDivElement>(null);
+  const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
+  const [tagSearch, setTagSearch] = useState("");
+  const tagPopoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!techPopoverOpen) return;
@@ -43,8 +52,24 @@ export default function SearchBar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [techPopoverOpen]);
 
+  useEffect(() => {
+    if (!tagPopoverOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (tagPopoverRef.current && !tagPopoverRef.current.contains(e.target as Node)) {
+        setTagPopoverOpen(false);
+        setTagSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [tagPopoverOpen]);
+
   const filteredTechs = allTechStacks.filter((tech) =>
     tech.toLowerCase().includes(techSearch.toLowerCase().trim()),
+  );
+
+  const filteredTags = allTags.filter((tag) =>
+    tag.toLowerCase().includes(tagSearch.toLowerCase().trim()),
   );
 
   const handleTechSelect = (tech: string | null) => {
@@ -61,10 +86,13 @@ export default function SearchBar({
   const handleReset = () => {
     setTechSearch("");
     setTechPopoverOpen(false);
+    setTagSearch("");
+    setTagPopoverOpen(false);
     onSearch("");
     onFilterByTech(null);
     onFilterByStatus(null);
     onFilterByProjectType?.(null);
+    onFilterByTag?.(null);
   };
 
   const techDisplayLabel = techFilter ?? "All Technologies";
@@ -243,6 +271,114 @@ export default function SearchBar({
                 </option>
               ))}
             </select>
+          </div>
+        )}
+
+        {allTags.length > 0 && onFilterByTag && (
+          <div className="w-full md:w-52 shrink-0" ref={tagPopoverRef}>
+            <label
+              id="tag-filter-label"
+              htmlFor="tag-filter-button"
+              className="block text-sm font-medium text-slate-700 mb-1"
+            >
+              Tag
+            </label>
+            <div className="relative">
+              <button
+                id="tag-filter-button"
+                type="button"
+                onClick={() => setTagPopoverOpen((v) => !v)}
+                aria-haspopup="listbox"
+                aria-expanded={tagPopoverOpen}
+                aria-labelledby="tag-filter-label"
+                className="w-full flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-slate-900 hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
+              >
+                <span className="truncate">
+                  {tagFilter ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium bg-blue-100 text-blue-800">
+                      {tagFilter}
+                    </span>
+                  ) : (
+                    <span className="text-slate-500">All tags</span>
+                  )}
+                </span>
+                <svg
+                  className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${tagPopoverOpen ? "rotate-180" : ""}`}
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+
+              {tagPopoverOpen && (
+                <div
+                  role="listbox"
+                  aria-labelledby="tag-filter-label"
+                  className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg ring-1 ring-slate-900/5"
+                >
+                  <div className="border-b border-slate-100 p-2">
+                    <input
+                      type="text"
+                      placeholder="Search tags..."
+                      value={tagSearch}
+                      onChange={(e) => setTagSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          setTagPopoverOpen(false);
+                          setTagSearch("");
+                        }
+                      }}
+                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
+                    />
+                  </div>
+                  <div className="max-h-56 overflow-y-auto py-1">
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={!tagFilter}
+                      onClick={() => {
+                        onFilterByTag(null);
+                        setTagPopoverOpen(false);
+                        setTagSearch("");
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${!tagFilter ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                    >
+                      All tags
+                    </button>
+                    {filteredTags.length === 0 ? (
+                      <div className="px-3 py-4 text-sm text-slate-500 text-center">
+                        No tags match &quot;{tagSearch}&quot;
+                      </div>
+                    ) : (
+                      filteredTags.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          role="option"
+                          aria-selected={tagFilter === tag}
+                          onClick={() => {
+                            onFilterByTag(tag);
+                            setTagPopoverOpen(false);
+                            setTagSearch("");
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm transition-colors ${tagFilter === tag ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                        >
+                          {tag}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

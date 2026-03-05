@@ -19,6 +19,7 @@ function useFiltersFromUrl() {
   const techFilter = searchParams.get("tech") ?? null;
   const statusFilter = searchParams.get("status") ?? null;
   const projectTypeFilter = searchParams.get("type") ?? null;
+  const tagFilter = searchParams.get("tag") ?? null;
 
   const setSearchQuery = useCallback(
     (q: string) => {
@@ -60,15 +61,27 @@ function useFiltersFromUrl() {
     [pathname, router, searchParams],
   );
 
+  const setTagFilter = useCallback(
+    (tag: string | null) => {
+      const p = new URLSearchParams(searchParams.toString());
+      if (tag) p.set("tag", tag);
+      else p.delete("tag");
+      router.replace(`${pathname}?${p.toString()}`);
+    },
+    [pathname, router, searchParams],
+  );
+
   return {
     searchQuery,
     techFilter,
     statusFilter,
     projectTypeFilter,
+    tagFilter,
     setSearchQuery,
     setTechFilter,
     setStatusFilter,
     setProjectTypeFilter,
+    setTagFilter,
   };
 }
 
@@ -89,10 +102,12 @@ function HomeContent() {
     techFilter,
     statusFilter,
     projectTypeFilter,
+    tagFilter,
     setSearchQuery,
     setTechFilter,
     setStatusFilter,
     setProjectTypeFilter,
+    setTagFilter,
   } = useFiltersFromUrl();
 
   const [showForm, setShowForm] = useState(false);
@@ -117,25 +132,28 @@ function HomeContent() {
     return Array.from(set).toSorted();
   }, [projects]);
 
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of projects) {
+      for (const t of p.tags ?? []) set.add(t);
+    }
+    return Array.from(set).toSorted();
+  }, [projects]);
+
   const filteredProjects = useMemo(() => {
-    let result = [...projects];
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (p) => p.name.toLowerCase().includes(q) || p.path?.toLowerCase().includes(q),
-      );
-    }
-    if (techFilter) {
-      result = result.filter((p) => p.techStack.includes(techFilter));
-    }
-    if (statusFilter) {
-      result = result.filter((p) => p.status === statusFilter);
-    }
-    if (projectTypeFilter) {
-      result = result.filter((p) => p.projectType === projectTypeFilter);
+    const q = searchQuery.toLowerCase().trim();
+    const result: Project[] = [];
+    for (const p of projects) {
+      if (searchQuery && !p.name.toLowerCase().includes(q) && !p.path?.toLowerCase().includes(q))
+        continue;
+      if (techFilter && !p.techStack.includes(techFilter)) continue;
+      if (statusFilter && p.status !== statusFilter) continue;
+      if (projectTypeFilter && p.projectType !== projectTypeFilter) continue;
+      if (tagFilter && !(p.tags ?? []).includes(tagFilter)) continue;
+      result.push(p);
     }
     return result;
-  }, [projects, searchQuery, techFilter, statusFilter, projectTypeFilter]);
+  }, [projects, searchQuery, techFilter, statusFilter, projectTypeFilter, tagFilter]);
 
   const sortedProjects = useMemo(() => {
     if (!sortBy) return filteredProjects;
@@ -326,6 +344,9 @@ function HomeContent() {
                 projectTypeFilter={projectTypeFilter}
                 onFilterByProjectType={setProjectTypeFilter}
                 allProjectTypes={allProjectTypes}
+                tagFilter={tagFilter}
+                onFilterByTag={setTagFilter}
+                allTags={allTags}
               />
             </>
           )}
