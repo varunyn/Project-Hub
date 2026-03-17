@@ -256,12 +256,15 @@ export default function ProjectDetailPage() {
     "rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm ring-1 ring-slate-900/5";
   const sectionTitleClass = "text-sm font-semibold text-slate-900 tracking-tight mb-3";
   const inputClass =
-    "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors";
+    "w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors";
   const btnPrimary =
-    "inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors";
+    "inline-flex min-h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:cursor-not-allowed disabled:bg-blue-300 disabled:shadow-none";
 
   const iconClass = "h-4 w-4 shrink-0";
   const description = project.notes?.trim() || project.readmePreview?.trim() || null;
+  const hasTagInput = tagInput.trim().length > 0;
+  const hasGoalInput = goalInput.trim().length > 0;
+  const hasNoteInput = noteInput.trim().length > 0;
 
   return (
     <div className="w-full">
@@ -540,7 +543,12 @@ export default function ProjectDetailPage() {
                   </div>
                 )}
               </div>
-              <button type="button" onClick={() => handleAddTag()} className={btnPrimary}>
+              <button
+                type="button"
+                onClick={() => handleAddTag()}
+                disabled={!hasTagInput}
+                className={btnPrimary}
+              >
                 Add
               </button>
             </div>
@@ -558,7 +566,12 @@ export default function ProjectDetailPage() {
                   aria-label={project.notes ? "Edit note" : "Add note"}
                 />
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={handleSaveNote} className={btnPrimary}>
+                  <button
+                    type="button"
+                    onClick={handleSaveNote}
+                    disabled={!hasNoteInput}
+                    className={btnPrimary}
+                  >
                     Save Note
                   </button>
                   <button
@@ -606,7 +619,12 @@ export default function ProjectDetailPage() {
                   className={`min-h-[88px] ${inputClass}`}
                   aria-label="Add note"
                 />
-                <button type="button" onClick={handleAddNote} className={`w-full ${btnPrimary}`}>
+                <button
+                  type="button"
+                  onClick={handleAddNote}
+                  disabled={!hasNoteInput}
+                  className={`w-full ${btnPrimary}`}
+                >
                   Add Note
                 </button>
               </div>
@@ -642,7 +660,12 @@ export default function ProjectDetailPage() {
                 onKeyDown={(e) => e.key === "Enter" && handleAddGoal()}
                 className={inputClass}
               />
-              <button type="button" onClick={handleAddGoal} className={`w-full ${btnPrimary}`}>
+              <button
+                type="button"
+                onClick={handleAddGoal}
+                disabled={!hasGoalInput}
+                className={`w-full ${btnPrimary}`}
+              >
                 Add Goal
               </button>
             </div>

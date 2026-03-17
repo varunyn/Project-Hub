@@ -206,11 +206,7 @@ function HomeContent() {
   const handleDeleteProject = useCallback(
     async (project: Project) => {
       if (!confirm(`Delete "${project.name}"? This cannot be undone.`)) return;
-      try {
-        await deleteProject(project.id);
-      } catch (error) {
-        console.error("Failed to delete project:", error);
-      }
+      await deleteProject(project.id);
     },
     [deleteProject],
   );
@@ -250,37 +246,33 @@ function HomeContent() {
   }, []);
 
   const handleScanProjects = useCallback(async () => {
-    try {
-      await scanProjects();
-    } catch (scanError) {
-      console.error("Failed to scan projects:", scanError);
-    }
+    await scanProjects();
   }, [scanProjects]);
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-slate-900">Project Dashboard</h1>
           <p className="text-sm text-slate-500 mt-0.5">
             {loading ? "…" : `${filteredProjects.length} projects found`}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           {!showForm && (
             <>
               <button
                 type="button"
                 onClick={handleScanProjects}
                 disabled={scanning}
-                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 transition-colors"
+                className="inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {scanning ? "Scanning…" : "Scan Projects"}
               </button>
               <button
                 type="button"
                 onClick={() => setShowForm(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 transition-colors"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -311,7 +303,7 @@ function HomeContent() {
           <button
             type="button"
             onClick={clearError}
-            className="rounded p-1 font-medium hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-300"
+            className="inline-flex min-h-8 min-w-8 items-center justify-center rounded p-1 font-medium hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-300"
             aria-label="Dismiss error"
           >
             ×

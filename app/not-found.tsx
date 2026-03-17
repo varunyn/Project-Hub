@@ -7,7 +7,7 @@ export default function NotFound() {
       <p className="mt-2 text-slate-600">The page you’re looking for doesn’t exist or was moved.</p>
       <Link
         href="/"
-        className="mt-6 rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+        className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
       >
         Back to dashboard
       </Link>

@@ -64,7 +64,7 @@ export default function Sidebar({ projects, sidebarId }: SidebarProps) {
           <h2 className="font-semibold text-white text-base tracking-tight">Project Dashboard</h2>
           <Link
             href="/"
-            className="mt-1.5 flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition-colors focus:outline-none focus:opacity-80"
+            className="mt-1.5 flex min-h-10 items-center gap-2 rounded-lg px-1 text-sm text-slate-400 transition-colors hover:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-500/70"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -86,7 +86,7 @@ export default function Sidebar({ projects, sidebarId }: SidebarProps) {
         <div className="shrink-0 -me-2">
           <button
             type="button"
-            className="flex justify-center items-center size-8 rounded-lg text-slate-400 hover:bg-slate-700/60 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500"
+            className="flex size-10 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-700/60 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500"
             aria-label="Close sidebar"
             data-hs-overlay={`#${sidebarId}`}
           >

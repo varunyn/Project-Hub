@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
 import type { Project } from "../types";
 
 interface ProjectFormProps {
@@ -23,13 +23,19 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
   const [techInput, setTechInput] = useState("");
 
   const fieldClassName =
-    "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors";
+    "w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors";
   const labelClassName = "mb-1.5 block text-sm font-medium text-slate-700";
   const sectionTitleClassName = "text-xs font-semibold uppercase tracking-wide text-slate-500";
   const secondaryButtonClassName =
-    "inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 transition-colors";
+    "inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60";
   const primaryButtonClassName =
-    "inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors";
+    "inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:cursor-not-allowed disabled:bg-blue-300 disabled:shadow-none";
+
+  const techInputValue = techInput.trim();
+  const canAddTech = techInputValue.length > 0;
+  const formName = (formData.name ?? "").trim();
+  const formPath = (formData.path ?? "").trim();
+  const canSubmit = formName.length > 0 && formPath.length > 0;
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -43,11 +49,11 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
   };
 
   const handleAddTech = () => {
-    const value = techInput.trim();
+    const value = techInputValue;
     if (value) {
       setFormData((prev) => {
         const stack = prev.techStack ?? [];
-        if (stack.includes(value)) return prev;
+        if (stack.some((tech) => tech.toLowerCase() === value.toLowerCase())) return prev;
         return { ...prev, techStack: [...stack, value] };
       });
       setTechInput("");
@@ -61,7 +67,7 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
     }));
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     onSubmit(formData);
   };
@@ -71,9 +77,7 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
       <h2 className="text-xl font-semibold tracking-tight text-slate-900">
         {project ? "Edit Project" : "Add New Project"}
       </h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Keep details concise so you can scan and resume work quickly.
-      </p>
+      <p className="mt-1 text-sm text-slate-500">Keep details concise for quick scanning.</p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-6">
         <section className="space-y-3">
@@ -124,7 +128,7 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
               value={formData.path}
               onChange={handleChange}
               required
-              placeholder="/Users/username/path/to/project"
+              placeholder="~/projects/my-app"
               className={fieldClassName}
             />
           </div>
@@ -179,16 +183,27 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
                 type="text"
                 value={techInput}
                 onChange={handleTechInputChange}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddTech();
+                  }
+                }}
                 placeholder="Add technology"
                 className={`flex-grow ${fieldClassName}`}
               />
-              <button type="button" onClick={handleAddTech} className={primaryButtonClassName}>
+              <button
+                type="button"
+                onClick={handleAddTech}
+                disabled={!canAddTech}
+                className={primaryButtonClassName}
+              >
                 Add
               </button>
             </div>
           </div>
 
-          <div className="flex min-h-8 flex-wrap gap-2">
+          <div className="flex flex-wrap items-start gap-2">
             {formData.techStack?.map((tech, index) => (
               <div
                 key={tech}
@@ -225,18 +240,18 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
               name="readmePreview"
               value={formData.readmePreview}
               onChange={handleChange}
-              rows={4}
+              rows={5}
               placeholder="A brief description of your project."
               className={fieldClassName}
             />
           </div>
         </section>
 
-        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5">
+        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5 max-sm:flex-col-reverse max-sm:items-stretch">
           <button type="button" onClick={onCancel} className={secondaryButtonClassName}>
             Cancel
           </button>
-          <button type="submit" className={primaryButtonClassName}>
+          <button type="submit" disabled={!canSubmit} className={primaryButtonClassName}>
             {project ? "Update Project" : "Add Project"}
           </button>
         </div>

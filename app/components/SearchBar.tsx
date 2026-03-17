@@ -124,7 +124,7 @@ export default function SearchBar({
             <input
               type="text"
               id="search"
-              className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 py-2 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
+              className="w-full min-h-11 rounded-lg border border-slate-200 bg-white pl-10 pr-3 py-2 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
               placeholder="Search projects by name, path, or commit message..."
               value={searchQuery}
               onChange={(e) => onSearch(e.target.value)}
@@ -148,7 +148,7 @@ export default function SearchBar({
               aria-haspopup="listbox"
               aria-expanded={techPopoverOpen}
               aria-labelledby="tech-filter-label"
-              className="w-full flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-slate-900 hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
+              className="w-full min-h-11 flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-slate-900 hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
             >
               <span className="truncate">
                 {techFilter ? (
@@ -193,7 +193,7 @@ export default function SearchBar({
                         setTechSearch("");
                       }
                     }}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
+                    className="w-full min-h-11 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
                   />
                 </div>
                 <div className="max-h-56 overflow-y-auto py-1">
@@ -236,7 +236,7 @@ export default function SearchBar({
           </label>
           <select
             id="statusFilter"
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
+            className="w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
             value={statusFilter || "all"}
             onChange={handleStatusChange}
           >
@@ -257,7 +257,7 @@ export default function SearchBar({
             </label>
             <select
               id="projectTypeFilter"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
+              className="w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
               value={projectTypeFilter || "all"}
               onChange={(e) => {
                 const v = e.target.value;
@@ -291,7 +291,7 @@ export default function SearchBar({
                 aria-haspopup="listbox"
                 aria-expanded={tagPopoverOpen}
                 aria-labelledby="tag-filter-label"
-                className="w-full flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-slate-900 hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
+                className="w-full min-h-11 flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-slate-900 hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
               >
                 <span className="truncate">
                   {tagFilter ? (
@@ -336,7 +336,7 @@ export default function SearchBar({
                           setTagSearch("");
                         }
                       }}
-                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
+                      className="w-full min-h-11 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
                     />
                   </div>
                   <div className="max-h-56 overflow-y-auto py-1">
@@ -385,7 +385,7 @@ export default function SearchBar({
         <button
           type="button"
           onClick={handleReset}
-          className="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 h-10 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 transition-colors"
+          className="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 min-h-11 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 transition-colors"
         >
           Reset
         </button>

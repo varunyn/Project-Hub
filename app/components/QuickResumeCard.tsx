@@ -17,7 +17,10 @@ export default function QuickResumeCard({ project, onEdit, onDelete }: QuickResu
 
   return (
     <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 transition-all hover:border-slate-300 hover:shadow-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 flex flex-col gap-2">
-      <Link href={`/projects/${project.id}`} className="block focus:outline-none focus:ring-0">
+      <Link
+        href={`/projects/${project.id}`}
+        className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-2"
+      >
         <div className="flex justify-between items-start gap-2">
           <h3 className="font-semibold text-slate-900 truncate">{project.name}</h3>
           <span
