@@ -8,14 +8,13 @@ const projectsFilePath = path.join(dataDir, "projects.json");
 export function resolveProjectPathForServer(projectPath: string): string {
   const hostRoot = process.env.HOST_PROJECTS_ROOT;
   const containerRoot = process.env.CONTAINER_PROJECTS_ROOT;
-  if (
-    hostRoot &&
-    containerRoot &&
-    path.normalize(projectPath).startsWith(path.normalize(hostRoot))
-  ) {
+  if (hostRoot && containerRoot) {
     const normalized = path.normalize(projectPath);
-    const relative = path.relative(path.normalize(hostRoot), normalized);
-    return path.join(containerRoot, relative);
+    const normalizedHostRoot = path.normalize(hostRoot);
+    const relative = path.relative(normalizedHostRoot, normalized);
+    if (!relative.startsWith("..") && !path.isAbsolute(relative)) {
+      return path.join(containerRoot, relative);
+    }
   }
   return path.resolve(projectPath);
 }
@@ -50,35 +49,59 @@ function saveProjects(projects: Project[]): void {
   }
 }
 
-export function addProject(project: Project): Project[] {
-  const projects = getProjects();
-  const newProjects = [...projects, project];
-  saveProjects(newProjects);
-  return newProjects;
+let projectsWriteQueue: Promise<void> = Promise.resolve();
+
+async function queueProjectsWrite<T>(operation: () => T): Promise<T> {
+  const queuedOperation = projectsWriteQueue.then(async () => operation());
+  projectsWriteQueue = queuedOperation.then(
+    () => undefined,
+    () => undefined,
+  );
+  return queuedOperation;
 }
 
-export function updateProject(id: string, partial: Partial<Project>): Project[] {
-  const projects = getProjects();
-  const existing = projects.find((p) => p.id === id);
-  if (!existing) return projects;
-  const lastUpdated = new Date().toISOString().split("T")[0];
-  const updatedProject: Project = {
-    ...existing,
-    ...partial,
-    id: existing.id,
-    dateCreated: existing.dateCreated,
-    lastUpdated,
-  };
-  const newProjects = projects.map((p) => (p.id === id ? updatedProject : p));
-  saveProjects(newProjects);
-  return newProjects;
+export async function setProjects(projects: Project[]): Promise<Project[]> {
+  return queueProjectsWrite(() => {
+    saveProjects(projects);
+    return projects;
+  });
 }
 
-export function deleteProject(id: string): Project[] {
-  const projects = getProjects();
-  const newProjects = projects.filter((project) => project.id !== id);
-  saveProjects(newProjects);
-  return newProjects;
+export async function addProject(project: Project): Promise<Project[]> {
+  return queueProjectsWrite(() => {
+    const projects = getProjects();
+    const newProjects = [...projects, project];
+    saveProjects(newProjects);
+    return newProjects;
+  });
+}
+
+export async function updateProject(id: string, partial: Partial<Project>): Promise<Project[]> {
+  return queueProjectsWrite(() => {
+    const projects = getProjects();
+    const existing = projects.find((p) => p.id === id);
+    if (!existing) return projects;
+    const lastUpdated = new Date().toISOString().split("T")[0];
+    const updatedProject: Project = {
+      ...existing,
+      ...partial,
+      id: existing.id,
+      dateCreated: existing.dateCreated,
+      lastUpdated,
+    };
+    const newProjects = projects.map((p) => (p.id === id ? updatedProject : p));
+    saveProjects(newProjects);
+    return newProjects;
+  });
+}
+
+export async function deleteProject(id: string): Promise<Project[]> {
+  return queueProjectsWrite(() => {
+    const projects = getProjects();
+    const newProjects = projects.filter((project) => project.id !== id);
+    saveProjects(newProjects);
+    return newProjects;
+  });
 }
 
 export function readProjectReadme(projectPath: string): string {

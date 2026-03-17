@@ -56,7 +56,7 @@ export default function ProjectDetailPage() {
     for (const p of projects) {
       for (const t of p.tags ?? []) set.add(t);
     }
-    return Array.from(set).toSorted();
+    return Array.from(set).sort();
   }, [projects]);
 
   const currentProjectTags = useMemo(() => new Set(project?.tags ?? []), [project?.tags]);
@@ -85,7 +85,7 @@ export default function ProjectDetailPage() {
 
   const sortedProjects = useMemo(
     () =>
-      projects.toSorted(
+      [...projects].sort(
         (a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime(),
       ),
     [projects],

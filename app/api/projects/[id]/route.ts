@@ -26,7 +26,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const updatedData = await request.json();
-    const updatedProjects = updateProject(id, updatedData);
+    const updatedProjects = await updateProject(id, updatedData);
     return NextResponse.json(updatedProjects);
   } catch (err) {
     console.error("Failed to update project:", err);
@@ -48,7 +48,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    const updatedProjects = deleteProject(id);
+    const updatedProjects = await deleteProject(id);
     return NextResponse.json(updatedProjects);
   } catch (err) {
     console.error("Failed to delete project:", err);

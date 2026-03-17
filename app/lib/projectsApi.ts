@@ -7,6 +7,9 @@ async function handleResponse<T>(response: Response): Promise<T> {
     const data = await response.json().catch(() => ({}));
     throw new Error((data as { error?: string }).error ?? "Request failed");
   }
+  if (response.status === 204) {
+    return {} as T;
+  }
   return response.json() as Promise<T>;
 }
 
@@ -40,5 +43,10 @@ export async function updateProject(id: string, data: Partial<Project>): Promise
 
 export async function deleteProject(id: string): Promise<Project[]> {
   const response = await fetch(`${BASE}/${id}`, { method: "DELETE" });
+  return handleResponse<Project[]>(response);
+}
+
+export async function scanProjects(): Promise<Project[]> {
+  const response = await fetch(`${BASE}/scan`, { method: "POST" });
   return handleResponse<Project[]>(response);
 }

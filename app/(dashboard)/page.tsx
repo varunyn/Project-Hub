@@ -89,12 +89,14 @@ function HomeContent() {
   const {
     projects,
     loading,
+    scanning,
+    scanMessage,
     error,
     addProject,
     updateProject,
     deleteProject,
     clearError,
-    refetch,
+    scanProjects,
   } = useProjects();
 
   const {
@@ -121,7 +123,7 @@ function HomeContent() {
     for (const project of projects) {
       for (const tech of project.techStack) techSet.add(tech);
     }
-    return Array.from(techSet).toSorted();
+    return Array.from(techSet).sort();
   }, [projects]);
 
   const allProjectTypes = useMemo(() => {
@@ -129,7 +131,7 @@ function HomeContent() {
     projects.forEach((p) => {
       if (p.projectType) set.add(p.projectType);
     });
-    return Array.from(set).toSorted();
+    return Array.from(set).sort();
   }, [projects]);
 
   const allTags = useMemo(() => {
@@ -137,7 +139,7 @@ function HomeContent() {
     for (const p of projects) {
       for (const t of p.tags ?? []) set.add(t);
     }
-    return Array.from(set).toSorted();
+    return Array.from(set).sort();
   }, [projects]);
 
   const filteredProjects = useMemo(() => {
@@ -158,13 +160,13 @@ function HomeContent() {
   const sortedProjects = useMemo(() => {
     if (!sortBy) return filteredProjects;
     if (sortBy === "status") {
-      return filteredProjects.toSorted((a, b) => {
+      return [...filteredProjects].sort((a, b) => {
         const order = (s: string) => (s === "in progress" ? 0 : s === "completed" ? 1 : 2);
         const cmp = order(a.status) - order(b.status);
         return sortDir === "asc" ? cmp : -cmp;
       });
     }
-    return filteredProjects.toSorted((a, b) => {
+    return [...filteredProjects].sort((a, b) => {
       const ta = new Date(a.lastUpdated).getTime();
       const tb = new Date(b.lastUpdated).getTime();
       const cmp = ta - tb;
@@ -173,8 +175,8 @@ function HomeContent() {
   }, [filteredProjects, sortBy, sortDir]);
 
   const quickResumeProjects = useMemo(() => {
-    return projects
-      .toSorted((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
+    return [...projects]
+      .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
       .slice(0, 12);
   }, [projects]);
 
@@ -247,6 +249,14 @@ function HomeContent() {
     });
   }, []);
 
+  const handleScanProjects = useCallback(async () => {
+    try {
+      await scanProjects();
+    } catch (scanError) {
+      console.error("Failed to scan projects:", scanError);
+    }
+  }, [scanProjects]);
+
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
@@ -261,10 +271,11 @@ function HomeContent() {
             <>
               <button
                 type="button"
-                onClick={() => refetch()}
+                onClick={handleScanProjects}
+                disabled={scanning}
                 className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 transition-colors"
               >
-                Scan Projects
+                {scanning ? "Scanning…" : "Scan Projects"}
               </button>
               <button
                 type="button"
@@ -291,6 +302,8 @@ function HomeContent() {
           )}
         </div>
       </div>
+
+      {scanMessage && <p className="mb-4 text-sm text-slate-600">{scanMessage}</p>}
 
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-sm mb-6 flex justify-between items-center">

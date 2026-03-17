@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       newProject.lastUpdated = today;
     }
 
-    const updatedProjects = addProject(newProject);
+    const updatedProjects = await addProject(newProject);
     return NextResponse.json(updatedProjects);
   } catch (err) {
     console.error("Failed to add project:", err);

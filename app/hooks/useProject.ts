@@ -20,7 +20,7 @@ export function useProject(id: string | null) {
     async (data: Partial<Project>) => {
       if (!id) return;
       await apiUpdateProject(id, data);
-      mutate((prev) => (prev ? { ...prev, ...data } : null), false);
+      mutate((prev) => (prev ? { ...prev, ...data } : undefined), false);
     },
     [id, mutate],
   );
