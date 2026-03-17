@@ -206,7 +206,9 @@ function HomeContent() {
       if (!confirm(`Delete "${project.name}"? This cannot be undone.`)) return;
       try {
         await deleteProject(project.id);
-      } catch {}
+      } catch (error) {
+        console.error("Failed to delete project:", error);
+      }
     },
     [deleteProject],
   );

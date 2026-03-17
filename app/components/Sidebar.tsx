@@ -24,7 +24,9 @@ export function pushRecentProjectId(id: string): void {
     const ids = getRecentIds();
     const next = [...ids.filter((x) => x !== id), id].slice(-RECENT_MAX);
     localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next));
-  } catch {}
+  } catch (error) {
+    console.warn("Failed to store recent project id:", error);
+  }
 }
 
 interface SidebarProps {
