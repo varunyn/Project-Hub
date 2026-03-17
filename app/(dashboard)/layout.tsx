@@ -9,7 +9,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { projects, loading } = useProjects();
 
   return (
-    <div className="flex h-screen min-h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen min-h-screen overflow-hidden bg-slate-50">
       <div
         id={SIDEBAR_ID}
         className="hs-overlay [--auto-close:lg] [--auto-close-equality-type:less-than] [--opened:lg] [--is-layout-affect:true] w-72 hs-overlay-open:translate-x-0 -translate-x-full transition-all duration-300 transform h-full hidden fixed top-0 start-0 bottom-0 z-[60] bg-slate-900 border-e border-slate-600/90 shadow-xl"
@@ -22,11 +22,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
 
-      <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden relative bg-white border-l border-gray-200 min-h-screen shadow-[inset_2px_0_4px_0_rgba(0,0,0,0.04)]">
+      <main className="relative flex min-h-0 min-h-screen min-w-0 flex-1 flex-col overflow-hidden border-l border-slate-200/80 bg-white shadow-[inset_2px_0_4px_0_rgba(15,23,42,0.04)]">
         <div className="dashboard-main-content flex-1 min-h-0 overflow-auto transition-[margin] duration-300">
           <button
             type="button"
-            className="fixed top-4 left-4 z-[30] p-2 rounded-lg bg-white border border-gray-200 shadow-md text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500"
+            className="fixed left-4 top-4 z-[30] rounded-lg border border-slate-200/80 bg-white p-2 text-slate-600 shadow-sm ring-1 ring-slate-900/5 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400/50 focus:ring-offset-2"
             aria-haspopup="dialog"
             aria-expanded="false"
             aria-controls={SIDEBAR_ID}
