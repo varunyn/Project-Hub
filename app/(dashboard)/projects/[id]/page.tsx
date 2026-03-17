@@ -38,6 +38,7 @@ export default function ProjectDetailPage() {
   const [tagHighlightIndex, setTagHighlightIndex] = useState(0);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
   const [noteInput, setNoteInput] = useState("");
+  const [isEditingNote, setIsEditingNote] = useState(false);
   const [goalInput, setGoalInput] = useState("");
 
   const gitLogKey = project?.id ? `/api/projects/${project.id}/git-log` : null;
@@ -189,6 +190,37 @@ export default function ProjectDetailPage() {
     setNoteInput("");
     refetch();
   }, [noteInput, project, updateProject, refetch]);
+
+  const handleStartNoteEdit = useCallback(() => {
+    setNoteInput(project?.notes ?? "");
+    setIsEditingNote(true);
+  }, [project?.notes]);
+
+  const handleCancelNoteEdit = useCallback(() => {
+    setNoteInput("");
+    setIsEditingNote(false);
+  }, []);
+
+  const handleSaveNote = useCallback(async () => {
+    if (!project) return;
+    const nextNote = noteInput.trim();
+    await updateProject({ notes: nextNote || undefined });
+    setNoteInput("");
+    setIsEditingNote(false);
+    refetch();
+  }, [noteInput, project, updateProject, refetch]);
+
+  const handleDeleteNote = useCallback(async () => {
+    if (!project?.notes?.trim()) {
+      setNoteInput("");
+      setIsEditingNote(false);
+      return;
+    }
+    await updateProject({ notes: undefined });
+    setNoteInput("");
+    setIsEditingNote(false);
+    refetch();
+  }, [project?.notes, updateProject, refetch]);
 
   const handleAddGoal = useCallback(async () => {
     const g = goalInput.trim();
@@ -516,21 +548,69 @@ export default function ProjectDetailPage() {
 
           <section className={cardClass}>
             <h2 className={sectionTitleClass}>Notes</h2>
-            {project.notes && (
-              <p className="text-sm text-slate-700 mb-3 whitespace-pre-wrap">{project.notes}</p>
+            {isEditingNote ? (
+              <div className="flex flex-col gap-2 max-w-md">
+                <textarea
+                  placeholder="Add a note..."
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                  className={`min-h-[88px] ${inputClass}`}
+                  aria-label={project.notes ? "Edit note" : "Add note"}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={handleSaveNote} className={btnPrimary}>
+                    Save Note
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelNoteEdit}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 transition-colors"
+                    aria-label="Cancel note edit"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteNote}
+                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300 focus:ring-offset-2 transition-colors"
+                    aria-label={project.notes ? "Delete note" : "Clear note draft"}
+                  >
+                    {project.notes ? "Delete Note" : "Clear"}
+                  </button>
+                </div>
+              </div>
+            ) : project.notes ? (
+              <div className="space-y-3">
+                <p className="text-sm text-slate-700 whitespace-pre-wrap">{project.notes}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={handleStartNoteEdit} className={btnPrimary}>
+                    Edit Note
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteNote}
+                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300 focus:ring-offset-2 transition-colors"
+                    aria-label="Delete note"
+                  >
+                    Delete Note
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3 max-w-md">
+                <p className="text-sm text-slate-500">No notes yet.</p>
+                <textarea
+                  placeholder="Add a note..."
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                  className={`min-h-[88px] ${inputClass}`}
+                  aria-label="Add note"
+                />
+                <button type="button" onClick={handleAddNote} className={`w-full ${btnPrimary}`}>
+                  Add Note
+                </button>
+              </div>
             )}
-            {!project.notes && <p className="text-sm text-slate-500 mb-3">No notes yet.</p>}
-            <div className="flex flex-col gap-2 max-w-md">
-              <textarea
-                placeholder="Add a note..."
-                value={noteInput}
-                onChange={(e) => setNoteInput(e.target.value)}
-                className={`min-h-[88px] ${inputClass}`}
-              />
-              <button type="button" onClick={handleAddNote} className={`w-full ${btnPrimary}`}>
-                Add Note
-              </button>
-            </div>
           </section>
 
           <section className={cardClass}>
