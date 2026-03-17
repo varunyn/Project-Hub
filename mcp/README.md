@@ -4,14 +4,14 @@ FastMCP server so AI agents (Cursor, Claude, etc.) can **query**, **add**, and *
 
 ## Tools
 
-| Tool | Description |
-|------|-------------|
-| `list_projects` | List all projects |
-| `get_project(project_id)` | Get one project by ID |
+| Tool                                      | Description                                |
+| ----------------------------------------- | ------------------------------------------ |
+| `list_projects`                           | List all projects                          |
+| `get_project(project_id)`                 | Get one project by ID                      |
 | `search_projects(query?, status?, tech?)` | Search by name/path, status, or tech stack |
-| `add_project(name, path, ...)` | Add a new project |
-| `update_project(project_id, ...)` | Update an existing project |
-| `delete_project(project_id)` | Delete a project |
+| `add_project(name, path, ...)`            | Add a new project                          |
+| `update_project(project_id, ...)`         | Update an existing project                 |
+| `delete_project(project_id)`              | Delete a project                           |
 
 ## Setup
 
