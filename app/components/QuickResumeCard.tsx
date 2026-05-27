@@ -61,7 +61,7 @@ export default function QuickResumeCard({ project, onEdit, onDelete }: QuickResu
                 onEdit(project);
               }}
               className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-              aria-label={`Edit ${project.name}`}
+              aria-label={`Edit quest ${project.name}`}
             >
               Edit
             </button>
@@ -74,7 +74,7 @@ export default function QuickResumeCard({ project, onEdit, onDelete }: QuickResu
                 onDelete(project);
               }}
               className="rounded-md px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-200"
-              aria-label={`Delete ${project.name}`}
+              aria-label={`Delete quest ${project.name}`}
             >
               Delete
             </button>

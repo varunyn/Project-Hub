@@ -2,13 +2,15 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
+import { notFound, useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { siCursor } from "simple-icons";
 import useSWR from "swr";
+import ProjectForm from "../../../components/ProjectForm";
 import { pushRecentProjectId } from "../../../components/Sidebar";
 import { useProject } from "../../../hooks/useProject";
 import { useProjects } from "../../../hooks/useProjects";
+import type { Project } from "../../../types";
 import {
   formatCommitDate,
   formatLastActivity,
@@ -30,6 +32,8 @@ const TAG_LISTBOX_ID = "project-tag-listbox";
 
 export default function ProjectDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const id = typeof params.id === "string" ? params.id : null;
   const { project, loading, refetch, updateProject } = useProject(id);
   const { projects } = useProjects();
@@ -40,6 +44,7 @@ export default function ProjectDetailPage() {
   const tagDropdownRef = useRef<HTMLDivElement>(null);
   const [noteInput, setNoteInput] = useState("");
   const [isEditingNote, setIsEditingNote] = useState(false);
+  const [isEditingProject, setIsEditingProject] = useState(false);
   const [goalInput, setGoalInput] = useState("");
 
   const gitLogKey = project?.id ? `/api/projects/${project.id}/git-log` : null;
@@ -51,6 +56,12 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (id) pushRecentProjectId(id);
   }, [id]);
+
+  useEffect(() => {
+    if (searchParams.get("edit") === "1") {
+      setIsEditingProject(true);
+    }
+  }, [searchParams]);
 
   const sortedProjects = useMemo(
     () =>
@@ -151,6 +162,21 @@ export default function ProjectDetailPage() {
     await updateProject({ pinned: !project.pinned });
     refetch();
   }, [project, updateProject, refetch]);
+
+  const handleCloseProjectEdit = useCallback(() => {
+    setIsEditingProject(false);
+    if (id) router.replace(`/projects/${id}`);
+  }, [id, router]);
+
+  const handleUpdateProjectDetails = useCallback(
+    async (projectData: Partial<Project>) => {
+      if (!project) return;
+      await updateProject(projectData);
+      handleCloseProjectEdit();
+      refetch();
+    },
+    [project, updateProject, handleCloseProjectEdit, refetch],
+  );
 
   useEffect(() => {
     if (!tagDropdownOpen) return;
@@ -287,13 +313,13 @@ export default function ProjectDetailPage() {
           href="/"
           className="inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-sm font-extrabold text-[oklch(28%_0.08_265)] transition-colors hover:bg-[oklch(97%_0.025_245)] focus:outline-none focus:ring-2 focus:ring-[oklch(74%_0.12_230)]"
         >
-          <span aria-hidden>←</span> Back to Projects
+          <span aria-hidden>←</span> Back to Quests
         </Link>
         <button
           type="button"
           onClick={handleTogglePin}
           className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-[oklch(83%_0.1_75)] bg-[oklch(99%_0.035_75)] px-3 py-1.5 text-sm font-bold text-[oklch(37%_0.09_75)] shadow-sm transition-colors hover:bg-[oklch(96%_0.06_75)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.16_75)] focus:ring-offset-2"
-          aria-label={project.pinned ? "Unpin project" : "Pin project"}
+          aria-label={project.pinned ? "Unpin quest" : "Pin quest"}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -387,6 +413,17 @@ export default function ProjectDetailPage() {
         </div>
       </section>
 
+      {isEditingProject && (
+        <div className="mb-5">
+          <ProjectForm
+            key={project.id}
+            project={project}
+            onSubmit={handleUpdateProjectDetails}
+            onCancel={handleCloseProjectEdit}
+          />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
         <div className="min-w-0 space-y-4">
           <section className={cardClass}>
@@ -449,12 +486,37 @@ export default function ProjectDetailPage() {
                     d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2m-6 12h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z"
                   />
                 </svg>
-                {copyPathFeedback ? "Copied" : "Copy Path"}
+                {copyPathFeedback ? "Copied" : "Copy path"}
               </button>
             </div>
           </section>
 
           <section className={cardClass}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className={`${sectionTitleClass} !mb-0`}>Quest details</h2>
+              <button
+                type="button"
+                onClick={() => setIsEditingProject((value) => !value)}
+                className={btnSecondary}
+                aria-expanded={isEditingProject}
+              >
+                <svg
+                  className="size-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M16.862 4.487 19.5 7.125 8.25 18.375 4.5 19.5l1.125-3.75L16.862 4.487Z"
+                  />
+                </svg>
+                {isEditingProject ? "Close" : "Edit"}
+              </button>
+            </div>
             <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               <div>
                 <dt className="font-medium text-slate-500">Type</dt>
@@ -655,13 +717,13 @@ export default function ProjectDetailPage() {
                     disabled={!hasNoteInput}
                     className={btnPrimary}
                   >
-                    Save Note
+                    Save note
                   </button>
                   <button type="button" onClick={handleCancelNoteEdit} className={btnSecondary}>
                     Cancel
                   </button>
                   <button type="button" onClick={handleDeleteNote} className={btnDanger}>
-                    {project.notes ? "Delete Note" : "Clear"}
+                    {project.notes ? "Delete note" : "Clear"}
                   </button>
                 </div>
               </div>
@@ -672,10 +734,10 @@ export default function ProjectDetailPage() {
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={handleStartNoteEdit} className={btnPrimary}>
-                    Edit Note
+                    Edit note
                   </button>
                   <button type="button" onClick={handleDeleteNote} className={btnDanger}>
-                    Delete Note
+                    Delete note
                   </button>
                 </div>
               </div>
@@ -695,7 +757,7 @@ export default function ProjectDetailPage() {
                   disabled={!hasNoteInput}
                   className={`self-start ${btnPrimary}`}
                 >
-                  Add Note
+                  Add note
                 </button>
               </div>
             )}
@@ -746,14 +808,14 @@ export default function ProjectDetailPage() {
                 disabled={!hasGoalInput}
                 className={btnPrimary}
               >
-                Add Goal
+                Add goal
               </button>
             </div>
           </section>
 
           <nav
             className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[oklch(86%_0.055_265)] bg-[oklch(99%_0.012_245)] px-4 py-3 shadow-[0_2px_0_oklch(82%_0.06_255)] ring-1 ring-[oklch(96%_0.045_255)]"
-            aria-label="Project navigation"
+            aria-label="Quest navigation"
           >
             {prevProject ? (
               <Link

@@ -22,20 +22,21 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
   const [formData, setFormData] = useState<Partial<Project>>(project ?? defaultProject);
   const [techInput, setTechInput] = useState("");
 
-  const fieldClassName =
-    "w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors";
-  const labelClassName = "mb-1.5 block text-sm font-medium text-slate-700";
-  const sectionTitleClassName = "text-xs font-semibold uppercase tracking-wide text-slate-500";
-  const secondaryButtonClassName =
-    "inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60";
-  const primaryButtonClassName =
-    "inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:cursor-not-allowed disabled:bg-blue-300 disabled:shadow-none";
-
   const techInputValue = techInput.trim();
   const canAddTech = techInputValue.length > 0;
   const formName = (formData.name ?? "").trim();
   const formPath = (formData.path ?? "").trim();
   const canSubmit = formName.length > 0 && formPath.length > 0;
+
+  const fieldClassName =
+    "w-full min-h-10 rounded-lg border border-[oklch(88%_0.035_255)] bg-[oklch(99%_0.006_245)] px-3 py-2 text-sm text-[oklch(24%_0.045_260)] placeholder:text-[oklch(62%_0.055_255)] transition-colors focus:border-[oklch(67%_0.14_230)] focus:outline-none focus:ring-2 focus:ring-[oklch(74%_0.12_230_/_0.28)]";
+  const labelClassName = "mb-1.5 block text-sm font-bold text-[oklch(34%_0.07_260)]";
+  const sectionTitleClassName =
+    "text-xs font-extrabold uppercase tracking-wide text-[oklch(45%_0.13_205)]";
+  const secondaryButtonClassName =
+    "inline-flex min-h-10 items-center justify-center rounded-lg border border-[oklch(88%_0.035_255)] bg-[oklch(99%_0.006_245)] px-4 py-2 text-sm font-bold text-[oklch(34%_0.07_255)] shadow-sm transition-colors hover:bg-[oklch(97%_0.025_245)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.1_230)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
+  const primaryButtonClassName =
+    "inline-flex min-h-10 items-center justify-center rounded-lg bg-[oklch(28%_0.08_265)] px-4 py-2 text-sm font-bold text-[oklch(98%_0.006_250)] shadow-sm transition-colors hover:bg-[oklch(34%_0.1_265)] focus:outline-none focus:ring-2 focus:ring-[oklch(72%_0.14_250)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-[oklch(91%_0.025_255)] disabled:text-[oklch(62%_0.05_255)] disabled:shadow-none";
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -73,19 +74,28 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
   };
 
   return (
-    <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm ring-1 ring-slate-900/5">
-      <h2 className="text-xl font-semibold tracking-tight text-slate-900">
-        {project ? "Edit Project" : "Add New Project"}
-      </h2>
-      <p className="mt-1 text-sm text-slate-500">Keep details concise for quick scanning.</p>
+    <div className="overflow-hidden rounded-lg border border-[oklch(85%_0.04_250)] bg-[linear-gradient(135deg,oklch(98%_0.028_230),oklch(99%_0.006_245)_48%,oklch(98%_0.03_80))] p-4 shadow-[0_1px_2px_oklch(25%_0.04_260_/_0.08)] ring-1 ring-[oklch(97%_0.035_250)]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-wide text-[oklch(45%_0.13_205)]">
+            {project ? "Edit quest" : "New quest"}
+          </p>
+          <h2 className="mt-1 text-xl font-extrabold tracking-tight text-[oklch(24%_0.08_265)]">
+            {project ? "Quest setup" : "Add quest"}
+          </h2>
+        </div>
+        <p className="max-w-sm text-sm font-semibold text-[oklch(39%_0.06_260)]">
+          Keep the core metadata accurate. Tags, notes, and goals can stay lightweight below.
+        </p>
+      </div>
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+      <form onSubmit={handleSubmit} className="mt-5 space-y-5">
         <section className="space-y-3">
           <h3 className={sectionTitleClassName}>Core details</h3>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div>
               <label htmlFor="name" className={labelClassName}>
-                Project Name*
+                Quest name*
               </label>
               <input
                 type="text"
@@ -119,7 +129,7 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
 
           <div>
             <label htmlFor="path" className={labelClassName}>
-              Project Path*
+              Quest path*
             </label>
             <input
               type="text"
@@ -134,12 +144,12 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
           </div>
         </section>
 
-        <section className="space-y-3 border-t border-slate-100 pt-5">
+        <section className="space-y-3 border-t border-[oklch(89%_0.035_255)] pt-4">
           <h3 className={sectionTitleClassName}>Links</h3>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div>
               <label htmlFor="githubUrl" className={labelClassName}>
-                GitHub Repository
+                GitHub repo
                 <span className="ml-1 text-xs text-slate-500">(Optional)</span>
               </label>
               <input
@@ -156,7 +166,7 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
 
             <div>
               <label htmlFor="url" className={labelClassName}>
-                URL (if deployed)
+                Live URL
               </label>
               <input
                 type="url"
@@ -171,7 +181,7 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
           </div>
         </section>
 
-        <section className="space-y-3 border-t border-slate-100 pt-5">
+        <section className="space-y-3 border-t border-[oklch(89%_0.035_255)] pt-4">
           <h3 className={sectionTitleClassName}>Tech stack</h3>
           <div>
             <label htmlFor="tech-stack-input" className={labelClassName}>
@@ -207,13 +217,13 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
             {formData.techStack?.map((tech, index) => (
               <div
                 key={tech}
-                className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700 ring-1 ring-slate-200/60"
+                className="inline-flex items-center gap-1 rounded-lg bg-[oklch(95%_0.07_310)] px-3 py-1 text-sm font-bold text-[oklch(38%_0.12_310)] ring-1 ring-[oklch(83%_0.09_310)]"
               >
                 <span>{tech}</span>
                 <button
                   type="button"
                   onClick={() => handleRemoveTech(index)}
-                  className="rounded-full p-0.5 text-slate-400 transition-colors hover:bg-red-100 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300"
+                  className="rounded-full p-0.5 text-[oklch(44%_0.1_310)] transition-colors hover:bg-[oklch(95%_0.06_25)] hover:text-[oklch(50%_0.16_25)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.13_25)]"
                   aria-label={`Remove ${tech}`}
                 >
                   ×
@@ -221,18 +231,20 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
               </div>
             ))}
             {(!formData.techStack || formData.techStack.length === 0) && (
-              <span className="text-sm text-slate-500">No technologies added yet.</span>
+              <span className="text-sm font-medium text-[oklch(50%_0.07_260)]">
+                No technologies added yet.
+              </span>
             )}
           </div>
         </section>
 
-        <section className="space-y-3 border-t border-slate-100 pt-5">
+        <section className="space-y-3 border-t border-[oklch(89%_0.035_255)] pt-4">
           <h3 className={sectionTitleClassName}>Description</h3>
           <div>
             <label htmlFor="readmePreview" className={labelClassName}>
-              README Preview
+              Quest summary
               <span className="ml-1 text-xs text-slate-500">
-                (Optional - loads from README.md when project path is valid)
+                (Optional, loads from README.md when the quest path is valid)
               </span>
             </label>
             <textarea
@@ -241,18 +253,18 @@ export default function ProjectForm({ project, onSubmit, onCancel }: ProjectForm
               value={formData.readmePreview}
               onChange={handleChange}
               rows={5}
-              placeholder="A brief description of your project."
-              className={fieldClassName}
+              placeholder="A short summary for this quest."
+              className={`min-h-24 ${fieldClassName}`}
             />
           </div>
         </section>
 
-        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5 max-sm:flex-col-reverse max-sm:items-stretch">
+        <div className="flex flex-wrap justify-end gap-3 border-t border-[oklch(89%_0.035_255)] pt-4 max-sm:flex-col-reverse max-sm:items-stretch">
           <button type="button" onClick={onCancel} className={secondaryButtonClassName}>
             Cancel
           </button>
           <button type="submit" disabled={!canSubmit} className={primaryButtonClassName}>
-            {project ? "Update Project" : "Add Project"}
+            {project ? "Save quest" : "Add quest"}
           </button>
         </div>
       </form>

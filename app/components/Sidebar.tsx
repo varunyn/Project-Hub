@@ -61,7 +61,7 @@ export default function Sidebar({ projects, sidebarId }: SidebarProps) {
     <>
       <header className="shrink-0 p-4 flex justify-between items-center gap-x-2 border-b border-slate-700/80">
         <div className="min-w-0">
-          <h2 className="font-semibold text-white text-base tracking-tight">Project Dashboard</h2>
+          <h2 className="font-semibold text-white text-base tracking-tight">Quest Dashboard</h2>
           <Link
             href="/"
             className="mt-1.5 flex min-h-10 items-center gap-2 rounded-lg px-1 text-sm text-slate-400 transition-colors hover:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-500/70"
@@ -80,7 +80,7 @@ export default function Sidebar({ projects, sidebarId }: SidebarProps) {
                 d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
               />
             </svg>
-            <span className="truncate">Projects</span>
+            <span className="truncate">Quests</span>
           </Link>
         </div>
         <div className="shrink-0 -me-2">

@@ -32,7 +32,7 @@ export function useProjects() {
         mutate(updated, false);
         return updated;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to add project. Please try again.";
+        const msg = err instanceof Error ? err.message : "Failed to add quest. Please try again.";
         setMutationError(msg);
         throw err;
       }
@@ -49,7 +49,7 @@ export function useProjects() {
         return updated;
       } catch (err) {
         const msg =
-          err instanceof Error ? err.message : "Failed to update project. Please try again.";
+          err instanceof Error ? err.message : "Failed to update quest. Please try again.";
         setMutationError(msg);
         throw err;
       }
@@ -66,7 +66,7 @@ export function useProjects() {
         return updated;
       } catch (err) {
         const msg =
-          err instanceof Error ? err.message : "Failed to delete project. Please try again.";
+          err instanceof Error ? err.message : "Failed to delete quest. Please try again.";
         setMutationError(msg);
         throw err;
       }
@@ -89,14 +89,14 @@ export function useProjects() {
       const addedCount = Math.max(0, updated.length - projects.length);
       if (addedCount > 0) {
         setScanMessage(
-          `Scan complete: added ${addedCount} new project${addedCount === 1 ? "" : "s"}.`,
+          `Scan complete: added ${addedCount} new quest${addedCount === 1 ? "" : "s"}.`,
         );
       } else {
-        setScanMessage("Scan complete: no new projects found.");
+        setScanMessage("Scan complete: no new quests found.");
       }
       return updated;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to scan projects. Please try again.";
+      const msg = err instanceof Error ? err.message : "Failed to scan quests. Please try again.";
       setMutationError(msg);
       throw err;
     } finally {
