@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Project } from "../types";
 
-const dataDir = path.join(process.cwd(), "app/data");
+const dataDir = path.join(process.cwd(), "app", "data");
 const projectsFilePath = path.join(dataDir, "projects.json");
 
 export function resolveProjectPathForServer(projectPath: string): string {
@@ -16,7 +16,7 @@ export function resolveProjectPathForServer(projectPath: string): string {
       return path.join(containerRoot, relative);
     }
   }
-  return path.resolve(projectPath);
+  return path.resolve(/* turbopackIgnore: true */ projectPath);
 }
 
 function ensureDataDirExists() {

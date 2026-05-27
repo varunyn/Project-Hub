@@ -99,8 +99,8 @@ export default function SearchBar({
 
   return (
     <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 mb-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end">
-        <div className="flex-grow min-w-0">
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="min-w-72 flex-[1_1_24rem] max-sm:min-w-full">
           <label htmlFor="search" className="block text-sm font-medium text-slate-700 mb-1">
             Search by name
           </label>
@@ -132,7 +132,7 @@ export default function SearchBar({
           </div>
         </div>
 
-        <div className="w-full md:w-52 shrink-0" ref={techPopoverRef}>
+        <div className="w-full shrink-0 sm:w-52" ref={techPopoverRef}>
           <label
             id="tech-filter-label"
             htmlFor="tech-filter-button"
@@ -230,7 +230,7 @@ export default function SearchBar({
           </div>
         </div>
 
-        <div className="w-full md:w-40 shrink-0">
+        <div className="w-full shrink-0 sm:w-40">
           <label htmlFor="statusFilter" className="block text-sm font-medium text-slate-700 mb-1">
             Status
           </label>
@@ -248,7 +248,7 @@ export default function SearchBar({
         </div>
 
         {allProjectTypes.length > 0 && onFilterByProjectType && (
-          <div className="w-full md:w-40 shrink-0">
+          <div className="w-full shrink-0 sm:w-40">
             <label
               htmlFor="projectTypeFilter"
               className="block text-sm font-medium text-slate-700 mb-1"
@@ -275,7 +275,7 @@ export default function SearchBar({
         )}
 
         {allTags.length > 0 && onFilterByTag && (
-          <div className="w-full md:w-52 shrink-0" ref={tagPopoverRef}>
+          <div className="w-full shrink-0 sm:w-52" ref={tagPopoverRef}>
             <label
               id="tag-filter-label"
               htmlFor="tag-filter-button"

@@ -180,6 +180,21 @@ function HomeContent() {
       .slice(0, 12);
   }, [projects]);
 
+  const activeThisWeekCount = useMemo(() => {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return projects.filter((project) => new Date(project.lastUpdated) >= weekAgo).length;
+  }, [projects]);
+
+  const pinnedCount = useMemo(
+    () => projects.filter((project) => project.pinned).length,
+    [projects],
+  );
+
+  const completedCount = useMemo(
+    () => projects.filter((project) => project.status === "completed").length,
+    [projects],
+  );
+
   const handleAddProject = useCallback(
     async (projectData: Partial<Project>) => {
       await addProject(projectData);
@@ -250,55 +265,83 @@ function HomeContent() {
   }, [scanProjects]);
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">Project Dashboard</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {loading ? "…" : `${filteredProjects.length} projects found`}
-          </p>
-        </div>
-        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-          {!showForm && (
-            <>
-              <button
-                type="button"
-                onClick={handleScanProjects}
-                disabled={scanning}
-                className="inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {scanning ? "Scanning…" : "Scan Projects"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowForm(true)}
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5 mr-1"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+    <div className="mx-auto max-w-7xl">
+      <div className="mb-6 rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm ring-1 ring-slate-950/[0.03] sm:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Project Hub
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+              Project Dashboard
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {loading
+                ? "Loading project inventory"
+                : `${filteredProjects.length} of ${projects.length} projects shown`}
+            </p>
+          </div>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            {!showForm && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleScanProjects}
+                  disabled={scanning}
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-                Add Project
-              </button>
-            </>
-          )}
+                  {scanning ? "Scanning" : "Scan Projects"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(true)}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  Add Project
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-4">
+          {[
+            ["Total", projects.length],
+            ["Active this week", activeThisWeekCount],
+            ["Pinned", pinnedCount],
+            ["Completed", completedCount],
+          ].map(([label, value]) => (
+            <div key={label} className="min-w-0">
+              <p className="text-xs font-medium text-slate-500">{label}</p>
+              <p className="mt-1 text-xl font-semibold tabular-nums text-slate-950">{value}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      {scanMessage && <p className="mb-4 text-sm text-slate-600">{scanMessage}</p>}
+      {scanMessage && (
+        <p className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          {scanMessage}
+        </p>
+      )}
 
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-sm mb-6 flex justify-between items-center">
+        <div className="mb-6 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
           <button
             type="button"
@@ -324,11 +367,15 @@ function HomeContent() {
             <>
               {quickResumeProjects.length > 0 && (
                 <section className="mb-8">
-                  <h2 className="text-base font-semibold text-slate-900 tracking-tight mb-3 flex items-center gap-2">
-                    <span aria-hidden>⚡</span>
-                    Quick Resume (12 most recent)
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="mb-3 flex items-end justify-between gap-3">
+                    <div>
+                      <h2 className="text-base font-semibold tracking-tight text-slate-950">
+                        Quick Resume
+                      </h2>
+                      <p className="mt-0.5 text-sm text-slate-500">12 most recent projects</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {quickResumeProjects.map((project) => (
                       <QuickResumeCard
                         key={project.id}
@@ -359,144 +406,188 @@ function HomeContent() {
           )}
 
           {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-10 w-10 border-2 border-slate-200 border-t-blue-500" />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {["first", "second", "third", "fourth", "fifth", "sixth"].map((slot) => (
+                <div
+                  key={slot}
+                  className="h-44 animate-pulse rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="h-4 w-2/3 rounded bg-slate-200" />
+                  <div className="mt-4 h-3 w-full rounded bg-slate-100" />
+                  <div className="mt-2 h-3 w-5/6 rounded bg-slate-100" />
+                  <div className="mt-6 h-3 w-1/3 rounded bg-slate-100" />
+                </div>
+              ))}
             </div>
           ) : projects.length === 0 ? (
-            <div className="rounded-xl border border-slate-200/80 bg-white p-8 text-center shadow-sm ring-1 ring-slate-900/5">
-              <h2 className="text-lg font-semibold tracking-tight text-slate-900 mb-2">
-                No Projects Yet
+            <div className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+              <h2 className="mb-2 text-lg font-semibold tracking-tight text-slate-950">
+                No projects yet
               </h2>
-              <p className="text-slate-500 mb-4 text-sm">
-                Start by adding your first project using the button above.
+              <p className="mx-auto mb-5 max-w-md text-sm leading-6 text-slate-500">
+                Add a project manually, or scan your projects folder to build the dashboard.
               </p>
+              <button
+                type="button"
+                onClick={() => setShowForm(true)}
+                className="inline-flex min-h-11 items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+              >
+                Add Project
+              </button>
             </div>
           ) : filteredProjects.length === 0 ? (
-            <div className="rounded-xl border border-slate-200/80 bg-white p-8 text-center shadow-sm ring-1 ring-slate-900/5">
-              <h2 className="text-lg font-semibold text-slate-900 mb-2">No Matching Projects</h2>
-              <p className="text-slate-500 mb-4 text-sm">Try adjusting your search criteria.</p>
+            <div className="rounded-lg border border-slate-200 bg-white p-10 text-center shadow-sm">
+              <h2 className="mb-2 text-lg font-semibold text-slate-950">No matching projects</h2>
+              <p className="mb-5 text-sm text-slate-500">Try a broader search or clear filters.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setTechFilter(null);
+                  setStatusFilter(null);
+                  setProjectTypeFilter(null);
+                  setTagFilter(null);
+                }}
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2"
+              >
+                Clear filters
+              </button>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-900/5">
-              <table className="w-full text-left">
-                <thead className="border-b border-slate-200 bg-slate-50/80">
-                  <tr>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 w-10">
-                      Pin
-                    </th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">
-                      Project
-                    </th>
-                    <th
-                      className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 w-32"
-                      aria-sort={
-                        sortBy === "status"
-                          ? sortDir === "asc"
-                            ? "ascending"
-                            : "descending"
-                          : undefined
-                      }
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleSort("status")}
-                        className="inline-flex items-center gap-1 font-semibold text-slate-600 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 rounded transition-colors"
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm ring-1 ring-slate-950/[0.03]">
+              <div className="overflow-x-auto">
+                <table className="min-w-[760px] w-full text-left">
+                  <thead className="border-b border-slate-200 bg-slate-50/80">
+                    <tr>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 w-10">
+                        Pin
+                      </th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">
+                        Project
+                      </th>
+                      <th
+                        className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 w-32"
+                        aria-sort={
+                          sortBy === "status"
+                            ? sortDir === "asc"
+                              ? "ascending"
+                              : "descending"
+                            : undefined
+                        }
                       >
-                        Status
-                        {sortBy === "status" && (
-                          <span aria-hidden>{sortDir === "asc" ? "↑" : "↓"}</span>
-                        )}
-                      </button>
-                    </th>
-                    <th
-                      className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 w-36"
-                      aria-sort={
-                        sortBy === "lastActivity"
-                          ? sortDir === "asc"
-                            ? "ascending"
-                            : "descending"
-                          : undefined
-                      }
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleSort("lastActivity")}
-                        className="inline-flex items-center gap-1 font-semibold text-slate-600 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 rounded transition-colors"
-                      >
-                        Last Activity
-                        {sortBy === "lastActivity" && (
-                          <span aria-hidden>{sortDir === "asc" ? "↑" : "↓"}</span>
-                        )}
-                      </button>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedProjects.map((project) => (
-                    <tr
-                      key={project.id}
-                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors"
-                    >
-                      <td className="px-4 py-3">
                         <button
                           type="button"
-                          onClick={() => handleTogglePin(project)}
-                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-400/50 transition-colors"
-                          aria-label={project.pinned ? "Unpin" : "Pin"}
-                          title={project.pinned ? "Unpin" : "Pin"}
+                          onClick={() => handleSort("status")}
+                          className="inline-flex items-center gap-1 font-semibold text-slate-600 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 rounded transition-colors"
                         >
-                          <span className={project.pinned ? "text-amber-500" : ""}>
-                            {project.pinned ? "🔖" : "📌"}
-                          </span>
+                          Status
+                          {sortBy === "status" && (
+                            <span aria-hidden>{sortDir === "asc" ? "↑" : "↓"}</span>
+                          )}
                         </button>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/projects/${project.id}`}
-                            className="font-medium text-blue-600 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 rounded transition-colors"
-                          >
-                            {project.name}
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => handleEditProject(project)}
-                            className="text-xs text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300 rounded transition-colors"
-                            aria-label={`Edit ${project.name}`}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteProject(project)}
-                            className="text-xs text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-200 rounded transition-colors"
-                            aria-label={`Delete ${project.name}`}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                        {project.path && (
-                          <p className="text-xs text-slate-500 truncate max-w-md mt-0.5">
-                            {project.path}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${getStatusColor(
-                            project.status,
-                          )}`}
+                      </th>
+                      <th
+                        className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600 w-36"
+                        aria-sort={
+                          sortBy === "lastActivity"
+                            ? sortDir === "asc"
+                              ? "ascending"
+                              : "descending"
+                            : undefined
+                        }
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleSort("lastActivity")}
+                          className="inline-flex items-center gap-1 font-semibold text-slate-600 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 rounded transition-colors"
                         >
-                          {project.status.replace(/-/g, " ")}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">
-                        {formatLastActivity(project.lastUpdated)}
-                      </td>
+                          Last Activity
+                          {sortBy === "lastActivity" && (
+                            <span aria-hidden>{sortDir === "asc" ? "↑" : "↓"}</span>
+                          )}
+                        </button>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {sortedProjects.map((project) => (
+                      <tr
+                        key={project.id}
+                        className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70"
+                      >
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePin(project)}
+                            className="inline-flex size-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+                            aria-label={project.pinned ? "Unpin" : "Pin"}
+                            title={project.pinned ? "Unpin" : "Pin"}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className={`h-4 w-4 ${project.pinned ? "fill-amber-500 text-amber-500" : ""}`}
+                              viewBox="0 0 24 24"
+                              fill={project.pinned ? "currentColor" : "none"}
+                              stroke="currentColor"
+                              strokeWidth={1.8}
+                              aria-hidden
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M7 4.75A1.75 1.75 0 0 1 8.75 3h6.5A1.75 1.75 0 0 1 17 4.75V21l-5-3-5 3V4.75Z"
+                              />
+                            </svg>
+                          </button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <Link
+                              href={`/projects/${project.id}`}
+                              className="max-w-[20rem] truncate rounded font-medium text-blue-700 transition-colors hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+                            >
+                              {project.name}
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => handleEditProject(project)}
+                              className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                              aria-label={`Edit ${project.name}`}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteProject(project)}
+                              className="rounded-md px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-200"
+                              aria-label={`Delete ${project.name}`}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                          {project.path && (
+                            <p className="text-xs text-slate-500 truncate max-w-md mt-0.5">
+                              {project.path}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${getStatusColor(
+                              project.status,
+                            )}`}
+                          >
+                            {project.status.replace(/-/g, " ")}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">
+                          {formatLastActivity(project.lastUpdated)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </>

@@ -26,6 +26,7 @@ async function fetcherGitLog(url: string): Promise<GitCommit[]> {
 }
 
 const CURSOR_ICON_PATH = siCursor.path;
+const TAG_LISTBOX_ID = "project-tag-listbox";
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -51,38 +52,6 @@ export default function ProjectDetailPage() {
     if (id) pushRecentProjectId(id);
   }, [id]);
 
-  const allTagsFromProjects = useMemo(() => {
-    const set = new Set<string>();
-    for (const p of projects) {
-      for (const t of p.tags ?? []) set.add(t);
-    }
-    return Array.from(set).sort();
-  }, [projects]);
-
-  const currentProjectTags = useMemo(() => new Set(project?.tags ?? []), [project?.tags]);
-
-  const allTagsLowerSet = useMemo(
-    () => new Set(allTagsFromProjects.map((t) => t.toLowerCase())),
-    [allTagsFromProjects],
-  );
-
-  const tagSuggestions = useMemo(() => {
-    const q = tagInput.trim().toLowerCase();
-    const existing = allTagsFromProjects.filter(
-      (t) => !currentProjectTags.has(t) && (!q || t.toLowerCase().includes(q)),
-    );
-    const canCreateNew =
-      tagInput.trim() !== "" &&
-      !currentProjectTags.has(tagInput.trim()) &&
-      !allTagsLowerSet.has(tagInput.trim().toLowerCase());
-    return { existing, canCreateNew, newTag: tagInput.trim() };
-  }, [allTagsFromProjects, currentProjectTags, allTagsLowerSet, tagInput]);
-
-  const tagOptionCount = tagSuggestions.existing.length + (tagSuggestions.canCreateNew ? 1 : 0);
-
-  const effectiveHighlightIndex =
-    tagOptionCount > 0 ? Math.min(tagHighlightIndex, tagOptionCount - 1) : 0;
-
   const sortedProjects = useMemo(
     () =>
       [...projects].sort(
@@ -90,8 +59,9 @@ export default function ProjectDetailPage() {
       ),
     [projects],
   );
+
   const currentIndex = useMemo(
-    () => (id ? sortedProjects.findIndex((p) => p.id === id) : -1),
+    () => (id ? sortedProjects.findIndex((item) => item.id === id) : -1),
     [id, sortedProjects],
   );
   const prevProject = currentIndex > 0 ? sortedProjects[currentIndex - 1] : null;
@@ -100,10 +70,47 @@ export default function ProjectDetailPage() {
       ? sortedProjects[currentIndex + 1]
       : null;
 
-  const pathForUri = useCallback((p: string) => p.replace(/\\/g, "/"), []);
+  const pathForUri = useCallback((path: string) => path.replace(/\\/g, "/"), []);
+
+  const allTagsFromProjects = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of projects) {
+      for (const tag of item.tags ?? []) set.add(tag);
+    }
+    return Array.from(set).sort();
+  }, [projects]);
+
+  const currentProjectTags = useMemo(() => new Set(project?.tags ?? []), [project?.tags]);
+  const allTagsLowerSet = useMemo(
+    () => new Set(allTagsFromProjects.map((tag) => tag.toLowerCase())),
+    [allTagsFromProjects],
+  );
+
+  const tagSuggestions = useMemo(() => {
+    const query = tagInput.trim().toLowerCase();
+    const existing = allTagsFromProjects.filter(
+      (tag) => !currentProjectTags.has(tag) && (!query || tag.toLowerCase().includes(query)),
+    );
+    const newTag = tagInput.trim();
+    const canCreateNew =
+      newTag !== "" &&
+      !currentProjectTags.has(newTag) &&
+      !allTagsLowerSet.has(newTag.toLowerCase());
+    return { existing, canCreateNew, newTag };
+  }, [allTagsFromProjects, currentProjectTags, allTagsLowerSet, tagInput]);
+
+  const tagOptionCount = tagSuggestions.existing.length + (tagSuggestions.canCreateNew ? 1 : 0);
+  const effectiveHighlightIndex =
+    tagOptionCount > 0 ? Math.min(tagHighlightIndex, tagOptionCount - 1) : 0;
+
+  const showCopyFeedback = useCallback((duration = 1500) => {
+    setCopyPathFeedback(true);
+    setTimeout(() => setCopyPathFeedback(false), duration);
+  }, []);
 
   const handleShowInFinder = useCallback(async () => {
     if (!project?.path) return;
+
     try {
       const res = await fetch("/api/open-folder", {
         method: "POST",
@@ -114,35 +121,30 @@ export default function ProjectDetailPage() {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         if (data.error?.toLowerCase().includes("not available")) {
           navigator.clipboard.writeText(project.path);
-          setCopyPathFeedback(true);
-          setTimeout(() => setCopyPathFeedback(false), 2000);
+          showCopyFeedback(2000);
         }
       }
     } catch {
       navigator.clipboard.writeText(project.path);
-      setCopyPathFeedback(true);
-      setTimeout(() => setCopyPathFeedback(false), 2000);
+      showCopyFeedback(2000);
     }
-  }, [project]);
+  }, [project, showCopyFeedback]);
 
   const handleOpenInCursor = useCallback(() => {
     if (!project?.path) return;
-    const uri = `cursor://file/${pathForUri(project.path)}`;
-    window.open(uri, "_blank", "noopener");
+    window.open(`cursor://file/${pathForUri(project.path)}`, "_blank", "noopener");
   }, [project, pathForUri]);
 
   const handleOpenInVSCode = useCallback(() => {
     if (!project?.path) return;
-    const uri = `vscode://file/${pathForUri(project.path)}`;
-    window.open(uri, "_blank", "noopener");
+    window.open(`vscode://file/${pathForUri(project.path)}`, "_blank", "noopener");
   }, [project, pathForUri]);
 
   const handleCopyPath = useCallback(() => {
     if (!project?.path) return;
     navigator.clipboard.writeText(project.path);
-    setCopyPathFeedback(true);
-    setTimeout(() => setCopyPathFeedback(false), 1500);
-  }, [project]);
+    showCopyFeedback();
+  }, [project, showCopyFeedback]);
 
   const handleTogglePin = useCallback(async () => {
     if (!project) return;
@@ -152,8 +154,8 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (!tagDropdownOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(event.target as Node)) {
         setTagDropdownOpen(false);
       }
     };
@@ -163,30 +165,28 @@ export default function ProjectDetailPage() {
 
   const handleAddTag = useCallback(
     async (tagToAdd?: string) => {
-      const t = (tagToAdd ?? tagInput).trim();
-      if (!t || !project) return;
-      const tags = [...(project.tags ?? []), t];
-      await updateProject({ tags });
+      const tag = (tagToAdd ?? tagInput).trim();
+      if (!tag || !project || currentProjectTags.has(tag)) return;
+      await updateProject({ tags: [...(project.tags ?? []), tag] });
       setTagInput("");
       setTagDropdownOpen(false);
+      setTagHighlightIndex(0);
     },
-    [tagInput, project, updateProject],
+    [tagInput, project, currentProjectTags, updateProject],
   );
 
   const handleRemoveTag = useCallback(
     async (tag: string) => {
       if (!project?.tags) return;
-      await updateProject({
-        tags: project.tags.filter((x) => x !== tag),
-      });
+      await updateProject({ tags: project.tags.filter((item) => item !== tag) });
     },
     [project, updateProject],
   );
 
   const handleAddNote = useCallback(async () => {
-    const n = noteInput.trim();
+    const note = noteInput.trim();
     if (!project) return;
-    await updateProject({ notes: n || undefined });
+    await updateProject({ notes: note || undefined });
     setNoteInput("");
     refetch();
   }, [noteInput, project, updateProject, refetch]);
@@ -203,8 +203,7 @@ export default function ProjectDetailPage() {
 
   const handleSaveNote = useCallback(async () => {
     if (!project) return;
-    const nextNote = noteInput.trim();
-    await updateProject({ notes: nextNote || undefined });
+    await updateProject({ notes: noteInput.trim() || undefined });
     setNoteInput("");
     setIsEditingNote(false);
     refetch();
@@ -223,27 +222,35 @@ export default function ProjectDetailPage() {
   }, [project?.notes, updateProject, refetch]);
 
   const handleAddGoal = useCallback(async () => {
-    const g = goalInput.trim();
-    if (!g || !project) return;
-    const goals = [...(project.goals ?? []), g];
-    await updateProject({ goals });
+    const goal = goalInput.trim();
+    if (!goal || !project) return;
+    await updateProject({ goals: [...(project.goals ?? []), goal] });
     setGoalInput("");
   }, [goalInput, project, updateProject]);
 
   const handleRemoveGoal = useCallback(
     async (goal: string) => {
       if (!project?.goals) return;
-      await updateProject({
-        goals: project.goals.filter((x) => x !== goal),
-      });
+      await updateProject({ goals: project.goals.filter((item) => item !== goal) });
     },
     [project, updateProject],
   );
 
   if (loading && !project) {
     return (
-      <div className="flex items-center justify-center min-h-[40vh]">
-        <div className="animate-spin rounded-full h-10 w-10 border-2 border-slate-200 border-t-blue-500" />
+      <div className="mx-auto max-w-6xl animate-pulse">
+        <div className="mb-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="h-3 w-24 rounded bg-slate-200" />
+          <div className="mt-4 h-7 w-72 max-w-full rounded bg-slate-200" />
+          <div className="mt-3 h-4 w-96 max-w-full rounded bg-slate-100" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-6">
+            <div className="h-48 rounded-lg border border-slate-200 bg-white shadow-sm" />
+            <div className="h-56 rounded-lg border border-slate-200 bg-white shadow-sm" />
+          </div>
+          <div className="h-64 rounded-lg border border-slate-200 bg-white shadow-sm" />
+        </div>
       </div>
     );
   }
@@ -253,40 +260,116 @@ export default function ProjectDetailPage() {
   }
 
   const cardClass =
-    "rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm ring-1 ring-slate-900/5";
-  const sectionTitleClass = "text-sm font-semibold text-slate-900 tracking-tight mb-3";
-  const inputClass =
-    "w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors";
+    "rounded-lg border border-[oklch(88%_0.03_255)] bg-[oklch(99%_0.006_245)] p-4 shadow-[0_1px_2px_oklch(25%_0.04_260_/_0.08)] ring-1 ring-[oklch(96%_0.025_255)]";
+  const sectionTitleClass =
+    "mb-3 text-base font-extrabold tracking-tight text-[oklch(25%_0.07_260)]";
   const btnPrimary =
-    "inline-flex min-h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:cursor-not-allowed disabled:bg-blue-300 disabled:shadow-none";
-
-  const iconClass = "h-4 w-4 shrink-0";
+    "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-[oklch(28%_0.08_265)] px-3 py-1.5 text-sm font-bold text-[oklch(98%_0.006_250)] shadow-sm transition-colors hover:bg-[oklch(34%_0.1_265)] focus:outline-none focus:ring-2 focus:ring-[oklch(72%_0.14_250)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-[oklch(91%_0.025_255)] disabled:text-[oklch(62%_0.05_255)] disabled:shadow-none";
+  const btnSecondary =
+    "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[oklch(88%_0.035_255)] bg-[oklch(99%_0.006_245)] px-3 py-1.5 text-sm font-bold text-[oklch(34%_0.07_255)] shadow-sm transition-colors hover:bg-[oklch(97%_0.025_245)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.1_230)] focus:ring-offset-2";
+  const btnDanger =
+    "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[oklch(86%_0.08_25)] bg-[oklch(99%_0.015_25)] px-3 py-1.5 text-sm font-semibold text-[oklch(50%_0.16_25)] shadow-[0_2px_0_oklch(90%_0.06_25)] transition-colors hover:bg-[oklch(96%_0.045_25)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.13_25)] focus:ring-offset-2";
+  const inputClass =
+    "w-full min-h-9 rounded-lg border border-[oklch(88%_0.035_255)] bg-[oklch(99%_0.006_245)] px-3 py-1.5 text-sm text-[oklch(24%_0.045_260)] placeholder:text-[oklch(62%_0.055_255)] transition-colors focus:border-[oklch(67%_0.14_230)] focus:outline-none focus:ring-2 focus:ring-[oklch(74%_0.12_230_/_0.28)]";
+  const actionPrimary =
+    "inline-flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg bg-[linear-gradient(135deg,oklch(28%_0.09_265),oklch(33%_0.13_255))] px-3 py-3 text-sm font-extrabold text-[oklch(98%_0.006_250)] shadow-[0_2px_8px_oklch(30%_0.09_265_/_0.22)] transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[oklch(72%_0.14_250)] focus:ring-offset-2";
+  const actionSecondary =
+    "inline-flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border border-[oklch(88%_0.035_255)] bg-[oklch(99%_0.006_245)] px-3 py-3 text-sm font-extrabold text-[oklch(28%_0.07_260)] shadow-sm transition-transform hover:-translate-y-0.5 hover:bg-[oklch(97%_0.02_245)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.1_230)] focus:ring-offset-2";
   const description = project.notes?.trim() || project.readmePreview?.trim() || null;
   const hasTagInput = tagInput.trim().length > 0;
   const hasGoalInput = goalInput.trim().length > 0;
   const hasNoteInput = noteInput.trim().length > 0;
 
   return (
-    <div className="w-full">
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-[minmax(0,380px)_1fr] sm:gap-x-8">
-        <div className="min-w-0 space-y-6">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 transition-colors"
+    <div className="mx-auto w-full max-w-7xl rounded-xl border border-[oklch(88%_0.03_255)] bg-[oklch(99%_0.006_245)] p-5 shadow-[0_8px_24px_oklch(28%_0.05_260_/_0.08)] ring-1 ring-[oklch(96%_0.025_255)]">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href="/"
+          className="inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-sm font-extrabold text-[oklch(28%_0.08_265)] transition-colors hover:bg-[oklch(97%_0.025_245)] focus:outline-none focus:ring-2 focus:ring-[oklch(74%_0.12_230)]"
+        >
+          <span aria-hidden>←</span> Back to Projects
+        </Link>
+        <button
+          type="button"
+          onClick={handleTogglePin}
+          className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-[oklch(83%_0.1_75)] bg-[oklch(99%_0.035_75)] px-3 py-1.5 text-sm font-bold text-[oklch(37%_0.09_75)] shadow-sm transition-colors hover:bg-[oklch(96%_0.06_75)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.16_75)] focus:ring-offset-2"
+          aria-label={project.pinned ? "Unpin project" : "Pin project"}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`h-4 w-4 ${project.pinned ? "fill-amber-500 text-amber-500" : "text-[oklch(43%_0.1_75)]"}`}
+            viewBox="0 0 24 24"
+            fill={project.pinned ? "currentColor" : "none"}
+            stroke="currentColor"
+            strokeWidth={1.8}
+            aria-hidden
           >
-            <span aria-hidden>←</span> Back to Projects
-          </Link>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M7 4.75A1.75 1.75 0 0 1 8.75 3h6.5A1.75 1.75 0 0 1 17 4.75V21l-5-3-5 3V4.75Z"
+            />
+          </svg>
+          {project.pinned ? "Pinned" : "Pin"}
+        </button>
+      </div>
 
-          <section className={cardClass}>
-            <h2 className={sectionTitleClass}>Quick Actions</h2>
-            <div className="flex flex-col gap-2">
+      <section className="mb-5 overflow-hidden rounded-lg border border-[oklch(85%_0.04_250)] bg-[linear-gradient(135deg,oklch(98%_0.03_230),oklch(99%_0.012_245)_45%,oklch(98%_0.035_80))] p-5 ring-1 ring-[oklch(97%_0.035_250)]">
+        <div className="flex flex-wrap items-center justify-between gap-5">
+          <div className="min-w-0">
+            <p className="mb-1 text-xs font-extrabold uppercase tracking-wide text-[oklch(45%_0.13_205)]">
+              Quest
+            </p>
+            <h1 className="text-2xl font-extrabold tracking-tight text-[oklch(24%_0.08_265)]">
+              {project.name}
+            </h1>
+            {description && (
+              <p className="mt-2 max-w-2xl truncate text-sm font-semibold text-[oklch(39%_0.06_260)]">
+                {description}
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-extrabold capitalize ${getStatusColor(
+                  project.status,
+                )}`}
+              >
+                <span aria-hidden>●</span>
+                {project.status.replace(/-/g, " ")}
+              </span>
+              <span
+                className={`inline-block size-2 shrink-0 rounded-full ${getStatusDotColor(project.status)}`}
+                aria-hidden
+              />
+              <span className="text-sm font-medium text-[oklch(38%_0.06_260)]">
+                Last activity {formatLastActivity(project.lastUpdated)}
+              </span>
+            </div>
+          </div>
+          {project.path && (
+            <div className="flex max-w-full items-center gap-2 rounded-lg bg-[oklch(25%_0.065_265)] px-3 py-2 text-[oklch(97%_0.012_245)] shadow-sm ring-1 ring-[oklch(70%_0.12_235)] sm:max-w-[34rem]">
+              <svg
+                className="size-4 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 7h6l2 2h8v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z"
+                />
+              </svg>
+              <code className="min-w-0 flex-1 truncate font-mono text-xs">{project.path}</code>
               <button
                 type="button"
-                onClick={handleShowInFinder}
-                className="inline-flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-800 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 transition-colors text-left w-full max-w-xs"
+                onClick={handleCopyPath}
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-[oklch(90%_0.035_245)] transition-colors hover:bg-[oklch(36%_0.08_265)] focus:outline-none focus:ring-2 focus:ring-[oklch(74%_0.12_230)]"
+                aria-label="Copy path"
               >
                 <svg
-                  className={iconClass}
+                  className="size-4"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -295,60 +378,66 @@ export default function ProjectDetailPage() {
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                    d="M8 8h10v12H8zM6 16H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"
                   />
                 </svg>
-                Show in Finder
               </button>
-              <button
-                type="button"
-                onClick={handleOpenInCursor}
-                className="inline-flex items-center gap-3 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors text-left w-full max-w-xs"
-              >
-                <svg className={iconClass} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="min-w-0 space-y-4">
+          <section className={cardClass}>
+            <h2 className={sectionTitleClass}>Quick actions</h2>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <button type="button" onClick={handleOpenInCursor} className={actionPrimary}>
+                <svg className="size-7" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                   <path d={CURSOR_ICON_PATH} />
                 </svg>
                 Open in Cursor
               </button>
-              <button
-                type="button"
-                onClick={handleOpenInVSCode}
-                className="inline-flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-800 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 transition-colors text-left w-full max-w-xs"
-              >
-                <Image
-                  src="/vscode.svg"
-                  alt=""
-                  width={16}
-                  height={16}
-                  className={iconClass}
-                  aria-hidden
-                />
+              <button type="button" onClick={handleOpenInVSCode} className={actionSecondary}>
+                <Image src="/vscode.svg" alt="" width={24} height={24} className="size-6" />
                 Open in VS Code
+              </button>
+              <button type="button" onClick={handleShowInFinder} className={actionSecondary}>
+                <svg
+                  className="size-7"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"
+                  />
+                </svg>
+                Show in Finder
               </button>
               {project.githubUrl && (
                 <a
                   href={project.githubUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-800 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 transition-colors text-left w-full max-w-xs"
+                  className={actionSecondary}
                 >
-                  <svg className={iconClass} fill="currentColor" viewBox="0 0 24 24">
+                  <svg className="size-7" fill="currentColor" viewBox="0 0 24 24">
                     <path
                       fillRule="evenodd"
-                      d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                      d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"
                       clipRule="evenodd"
                     />
                   </svg>
                   Open in GitHub
                 </a>
               )}
-              <button
-                type="button"
-                onClick={handleCopyPath}
-                className="inline-flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-800 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 transition-colors text-left w-full max-w-xs"
-              >
+              <button type="button" onClick={handleCopyPath} className={actionSecondary}>
                 <svg
-                  className={iconClass}
+                  className="size-7"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -357,71 +446,71 @@ export default function ProjectDetailPage() {
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2m-6 12h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z"
                   />
                 </svg>
-                {copyPathFeedback ? "Copied!" : "Copy Path"}
+                {copyPathFeedback ? "Copied" : "Copy Path"}
               </button>
             </div>
           </section>
 
-          {(project.devServerUrl || project.startCommand) && (
-            <section className={cardClass}>
-              <h2 className={sectionTitleClass}>Overview</h2>
-              <div className="text-sm text-slate-700 space-y-1.5">
-                {project.devServerUrl && (
-                  <p>
-                    The dev server runs at:{" "}
-                    <strong className="font-medium text-slate-900">{project.devServerUrl}</strong>
-                  </p>
-                )}
-                {project.startCommand && (
-                  <p>
-                    Start with:{" "}
-                    <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-800">
+          <section className={cardClass}>
+            <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="font-medium text-slate-500">Type</dt>
+                <dd className="mt-1 font-semibold text-[oklch(27%_0.07_260)]">
+                  {project.projectType || "Not set"}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium text-slate-500">Status</dt>
+                <dd className="mt-1 font-semibold capitalize text-[oklch(36%_0.13_145)]">
+                  {project.status.replace(/-/g, " ")}
+                </dd>
+              </div>
+              {project.devServerUrl && (
+                <div>
+                  <dt className="font-medium text-slate-500">Dev server</dt>
+                  <dd className="mt-1 break-all text-slate-900">{project.devServerUrl}</dd>
+                </div>
+              )}
+              {project.startCommand && (
+                <div>
+                  <dt className="font-medium text-slate-500">Start command</dt>
+                  <dd className="mt-1">
+                    <code className="break-all rounded-md bg-[oklch(96%_0.035_75)] px-1.5 py-0.5 font-mono text-xs text-[oklch(33%_0.08_75)] ring-1 ring-[oklch(87%_0.08_75)]">
                       {project.startCommand}
                     </code>
-                  </p>
-                )}
-              </div>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </section>
+
+          {description && (
+            <section className={cardClass}>
+              <h2 className={sectionTitleClass}>Summary</h2>
+              <p className="max-w-prose whitespace-pre-wrap text-sm leading-6 text-slate-700 line-clamp-[10]">
+                {description}
+              </p>
             </section>
           )}
 
           <section className={cardClass}>
-            <h2 className={sectionTitleClass}>Details</h2>
-            <ul className="text-sm text-slate-600 space-y-1.5">
-              <li>
-                <span className="font-medium text-slate-700">Path:</span>{" "}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-800 break-all">
-                  {project.path}
-                </code>
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="font-medium text-slate-700">Type:</span>{" "}
-                {project.projectType ? (
-                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200/60">
-                    {project.projectType}
-                  </span>
-                ) : (
-                  "—"
-                )}
-              </li>
-            </ul>
-          </section>
-
-          <section className={cardClass}>
-            <h2 className={sectionTitleClass}>Tags</h2>
-            <div className="flex flex-wrap gap-2 mb-3">
+            <h2 className={sectionTitleClass}>
+              <span aria-hidden>◇</span> Tags
+            </h2>
+            <div className="mb-3 flex flex-wrap gap-2">
               {(project.tags ?? []).map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700 ring-1 ring-slate-200/60"
+                  className="inline-flex min-h-7 items-center gap-1 rounded-md bg-[oklch(94%_0.07_205)] px-2 py-0.5 text-sm font-bold text-[oklch(34%_0.1_225)] ring-1 ring-[oklch(80%_0.1_205)]"
                 >
                   {tag}
                   <button
                     type="button"
                     onClick={() => handleRemoveTag(tag)}
-                    className="ml-0.5 rounded-full p-0.5 text-slate-400 hover:bg-red-100 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-300"
+                    className="ml-0.5 inline-flex size-5 items-center justify-center rounded-full text-[oklch(48%_0.09_225)] transition-colors hover:bg-[oklch(95%_0.06_25)] hover:text-[oklch(50%_0.16_25)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.13_25)]"
                     aria-label={`Remove ${tag}`}
                   >
                     ×
@@ -429,28 +518,24 @@ export default function ProjectDetailPage() {
                 </span>
               ))}
               {(!project.tags || project.tags.length === 0) && (
-                <span className="text-sm text-slate-500">No tags yet.</span>
+                <span className="text-sm font-medium text-[oklch(50%_0.07_260)]">No tags yet.</span>
               )}
             </div>
-            <div className="flex gap-2 relative" ref={tagDropdownRef}>
-              <div className="flex-1 max-w-xs relative">
+            <div className="relative flex flex-col gap-2 sm:flex-row" ref={tagDropdownRef}>
+              <div className="relative flex-1">
                 <input
                   type="text"
-                  placeholder="Add tag... (choose existing or type new)"
+                  placeholder="Add tag"
                   value={tagInput}
-                  onChange={(e) => {
-                    setTagInput(e.target.value);
+                  onChange={(event) => {
+                    setTagInput(event.target.value);
                     setTagHighlightIndex(0);
                     setTagDropdownOpen(true);
                   }}
                   onFocus={() => setTagDropdownOpen(true)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      if (tagOptionCount === 0) {
-                        handleAddTag();
-                        return;
-                      }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
                       if (
                         tagSuggestions.canCreateNew &&
                         effectiveHighlightIndex === tagSuggestions.existing.length
@@ -459,86 +544,82 @@ export default function ProjectDetailPage() {
                         return;
                       }
                       const existing = tagSuggestions.existing[effectiveHighlightIndex];
-                      if (existing != null) {
-                        handleAddTag(existing);
-                        return;
-                      }
-                      handleAddTag();
+                      handleAddTag(existing);
                       return;
                     }
-                    if (e.key === "Escape") {
+                    if (event.key === "Escape") {
                       setTagDropdownOpen(false);
                       return;
                     }
-                    if (e.key === "ArrowDown") {
-                      e.preventDefault();
-                      setTagHighlightIndex((i) => (i + 1) % tagOptionCount);
+                    if (event.key === "ArrowDown" && tagOptionCount > 0) {
+                      event.preventDefault();
+                      setTagHighlightIndex((index) => (index + 1) % tagOptionCount);
                       return;
                     }
-                    if (e.key === "ArrowUp") {
-                      e.preventDefault();
-                      setTagHighlightIndex((i) => (tagOptionCount + i - 1) % tagOptionCount);
-                      return;
+                    if (event.key === "ArrowUp" && tagOptionCount > 0) {
+                      event.preventDefault();
+                      setTagHighlightIndex(
+                        (index) => (tagOptionCount + index - 1) % tagOptionCount,
+                      );
                     }
                   }}
                   className={inputClass}
                   autoComplete="off"
-                  aria-autocomplete="list"
-                  aria-expanded={tagDropdownOpen}
-                  aria-controls="tag-listbox"
-                  aria-activedescendant={
-                    tagDropdownOpen && tagOptionCount > 0
-                      ? `tag-opt-${effectiveHighlightIndex}`
-                      : undefined
-                  }
                   role="combobox"
                   aria-label="Add or select a tag"
+                  aria-autocomplete="list"
+                  aria-expanded={tagDropdownOpen}
+                  aria-controls={TAG_LISTBOX_ID}
+                  aria-activedescendant={
+                    tagDropdownOpen && tagOptionCount > 0
+                      ? `tag-option-${effectiveHighlightIndex}`
+                      : undefined
+                  }
                 />
                 {tagDropdownOpen && tagOptionCount > 0 && (
                   <div
-                    id="tag-listbox"
+                    id={TAG_LISTBOX_ID}
                     role="listbox"
-                    className="absolute z-10 mt-1 w-full max-h-48 overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-slate-900/5"
+                    className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-slate-950/[0.05]"
                   >
-                    {tagSuggestions.existing.map((tag, i) => (
-                      <div
+                    {tagSuggestions.existing.map((tag, index) => (
+                      <button
                         key={tag}
-                        id={`tag-opt-${i}`}
+                        id={`tag-option-${index}`}
+                        type="button"
                         role="option"
-                        tabIndex={-1}
-                        aria-selected={effectiveHighlightIndex === i}
-                        className={`cursor-pointer px-3 py-2 text-sm ${
-                          effectiveHighlightIndex === i
-                            ? "bg-blue-50 text-blue-900"
-                            : "text-slate-700 hover:bg-slate-50"
+                        aria-selected={effectiveHighlightIndex === index}
+                        className={`block w-full px-3 py-2 text-left text-sm ${
+                          effectiveHighlightIndex === index
+                            ? "bg-[oklch(94%_0.07_205)] text-[oklch(31%_0.12_230)]"
+                            : "text-slate-700 hover:bg-[oklch(97%_0.035_205)]"
                         }`}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
+                        onMouseDown={(event) => {
+                          event.preventDefault();
                           handleAddTag(tag);
                         }}
                       >
                         {tag}
-                      </div>
+                      </button>
                     ))}
                     {tagSuggestions.canCreateNew && (
-                      <div
-                        id={`tag-opt-${tagSuggestions.existing.length}`}
+                      <button
+                        id={`tag-option-${tagSuggestions.existing.length}`}
+                        type="button"
                         role="option"
-                        tabIndex={-1}
                         aria-selected={effectiveHighlightIndex === tagSuggestions.existing.length}
-                        className={`cursor-pointer px-3 py-2 text-sm border-t border-slate-100 ${
+                        className={`block w-full border-t border-slate-100 px-3 py-2 text-left text-sm ${
                           effectiveHighlightIndex === tagSuggestions.existing.length
-                            ? "bg-blue-50 text-blue-900"
-                            : "text-slate-600 hover:bg-slate-50"
+                            ? "bg-[oklch(94%_0.07_205)] text-[oklch(31%_0.12_230)]"
+                            : "text-slate-600 hover:bg-[oklch(97%_0.035_205)]"
                         }`}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
+                        onMouseDown={(event) => {
+                          event.preventDefault();
                           handleAddTag(tagSuggestions.newTag);
                         }}
                       >
-                        <span className="text-slate-500">Create new tag:</span>{" "}
-                        {tagSuggestions.newTag}
-                      </div>
+                        <span className="text-slate-500">Create tag:</span> {tagSuggestions.newTag}
+                      </button>
                     )}
                   </div>
                 )}
@@ -555,14 +636,16 @@ export default function ProjectDetailPage() {
           </section>
 
           <section className={cardClass}>
-            <h2 className={sectionTitleClass}>Notes</h2>
+            <h2 className={sectionTitleClass}>
+              <span aria-hidden>▣</span> Notes
+            </h2>
             {isEditingNote ? (
-              <div className="flex flex-col gap-2 max-w-md">
+              <div className="flex flex-col gap-3">
                 <textarea
-                  placeholder="Add a note..."
+                  placeholder="Add a note"
                   value={noteInput}
-                  onChange={(e) => setNoteInput(e.target.value)}
-                  className={`min-h-[88px] ${inputClass}`}
+                  onChange={(event) => setNoteInput(event.target.value)}
+                  className={`min-h-20 ${inputClass}`}
                   aria-label={project.notes ? "Edit note" : "Add note"}
                 />
                 <div className="flex flex-wrap gap-2">
@@ -574,56 +657,43 @@ export default function ProjectDetailPage() {
                   >
                     Save Note
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleCancelNoteEdit}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 transition-colors"
-                    aria-label="Cancel note edit"
-                  >
+                  <button type="button" onClick={handleCancelNoteEdit} className={btnSecondary}>
                     Cancel
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleDeleteNote}
-                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300 focus:ring-offset-2 transition-colors"
-                    aria-label={project.notes ? "Delete note" : "Clear note draft"}
-                  >
+                  <button type="button" onClick={handleDeleteNote} className={btnDanger}>
                     {project.notes ? "Delete Note" : "Clear"}
                   </button>
                 </div>
               </div>
             ) : project.notes ? (
               <div className="space-y-3">
-                <p className="text-sm text-slate-700 whitespace-pre-wrap">{project.notes}</p>
+                <p className="max-w-3xl whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                  {project.notes}
+                </p>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={handleStartNoteEdit} className={btnPrimary}>
                     Edit Note
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleDeleteNote}
-                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300 focus:ring-offset-2 transition-colors"
-                    aria-label="Delete note"
-                  >
+                  <button type="button" onClick={handleDeleteNote} className={btnDanger}>
                     Delete Note
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col gap-3 max-w-md">
-                <p className="text-sm text-slate-500">No notes yet.</p>
+              <div className="flex flex-col gap-3">
+                <p className="text-sm font-medium text-[oklch(50%_0.07_260)]">No notes yet.</p>
                 <textarea
-                  placeholder="Add a note..."
+                  placeholder="Add a note"
                   value={noteInput}
-                  onChange={(e) => setNoteInput(e.target.value)}
-                  className={`min-h-[88px] ${inputClass}`}
+                  onChange={(event) => setNoteInput(event.target.value)}
+                  className={`min-h-20 ${inputClass}`}
                   aria-label="Add note"
                 />
                 <button
                   type="button"
                   onClick={handleAddNote}
                   disabled={!hasNoteInput}
-                  className={`w-full ${btnPrimary}`}
+                  className={`self-start ${btnPrimary}`}
                 >
                   Add Note
                 </button>
@@ -632,15 +702,23 @@ export default function ProjectDetailPage() {
           </section>
 
           <section className={cardClass}>
-            <h2 className={sectionTitleClass}>Goals</h2>
-            <ul className="text-sm text-slate-700 mb-3 space-y-1.5">
+            <h2 className={sectionTitleClass}>
+              <span aria-hidden>◎</span> Goals
+            </h2>
+            <ul className="mb-3 space-y-1.5 text-sm text-slate-700">
               {(project.goals ?? []).map((goal) => (
-                <li key={goal} className="flex items-center gap-2">
-                  <span className="flex-1">{goal}</span>
+                <li
+                  key={goal}
+                  className="flex items-start gap-3 rounded-lg border border-[oklch(88%_0.065_140)] bg-[oklch(97%_0.045_140)] px-3 py-1.5"
+                >
+                  <span className="mt-2 size-1.5 shrink-0 rounded-full bg-[oklch(62%_0.17_145)]" />
+                  <span className="min-w-0 flex-1 font-medium leading-6 text-[oklch(30%_0.07_150)]">
+                    {goal}
+                  </span>
                   <button
                     type="button"
                     onClick={() => handleRemoveGoal(goal)}
-                    className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200"
+                    className="inline-flex size-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200"
                     aria-label={`Remove goal ${goal}`}
                   >
                     ×
@@ -648,23 +726,25 @@ export default function ProjectDetailPage() {
                 </li>
               ))}
               {(!project.goals || project.goals.length === 0) && (
-                <li className="text-slate-500">No goals yet.</li>
+                <li className="font-medium text-[oklch(50%_0.07_260)]">No goals yet.</li>
               )}
             </ul>
-            <div className="flex flex-col gap-2 max-w-md">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <input
                 type="text"
-                placeholder="Add a goal..."
+                placeholder="Add a goal"
                 value={goalInput}
-                onChange={(e) => setGoalInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddGoal()}
+                onChange={(event) => setGoalInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") handleAddGoal();
+                }}
                 className={inputClass}
               />
               <button
                 type="button"
                 onClick={handleAddGoal}
                 disabled={!hasGoalInput}
-                className={`w-full ${btnPrimary}`}
+                className={btnPrimary}
               >
                 Add Goal
               </button>
@@ -672,137 +752,53 @@ export default function ProjectDetailPage() {
           </section>
 
           <nav
-            className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm ring-1 ring-slate-900/5"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[oklch(86%_0.055_265)] bg-[oklch(99%_0.012_245)] px-4 py-3 shadow-[0_2px_0_oklch(82%_0.06_255)] ring-1 ring-[oklch(96%_0.045_255)]"
             aria-label="Project navigation"
           >
-            <div className="flex items-center gap-2">
-              {prevProject ? (
-                <Link
-                  href={`/projects/${prevProject.id}`}
-                  className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 rounded-lg px-2 py-1 transition-colors"
-                >
-                  <svg
-                    className="h-4 w-4 text-slate-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                  </svg>
-                  Previous Project
-                  <span className="text-slate-500 font-normal truncate max-w-[120px]">
-                    {prevProject.name}
-                  </span>
-                </Link>
-              ) : (
-                <span className="inline-flex items-center gap-2 text-sm text-slate-400">
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                  </svg>
-                  Previous Project
+            {prevProject ? (
+              <Link
+                href={`/projects/${prevProject.id}`}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-bold text-[oklch(37%_0.09_260)] transition-colors hover:bg-[oklch(96%_0.04_205)] hover:text-[oklch(31%_0.12_230)] focus:outline-none focus:ring-2 focus:ring-[oklch(74%_0.14_205)] focus:ring-offset-2"
+              >
+                <span aria-hidden>←</span>
+                <span>Previous</span>
+                <span className="max-w-[10rem] truncate font-normal text-slate-500">
+                  {prevProject.name}
                 </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {nextProject ? (
-                <Link
-                  href={`/projects/${nextProject.id}`}
-                  className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 rounded-lg px-2 py-1 transition-colors"
-                >
-                  <span className="text-slate-500 font-normal truncate max-w-[120px]">
-                    {nextProject.name}
-                  </span>
-                  Next Project
-                  <svg
-                    className="h-4 w-4 text-slate-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </Link>
-              ) : (
-                <span className="inline-flex items-center gap-2 text-sm text-slate-400">
-                  Next Project
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
+              </Link>
+            ) : (
+              <span className="inline-flex min-h-10 items-center gap-2 px-2 text-sm text-slate-400">
+                <span aria-hidden>←</span> Previous
+              </span>
+            )}
+            {nextProject ? (
+              <Link
+                href={`/projects/${nextProject.id}`}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-bold text-[oklch(37%_0.09_260)] transition-colors hover:bg-[oklch(96%_0.04_205)] hover:text-[oklch(31%_0.12_230)] focus:outline-none focus:ring-2 focus:ring-[oklch(74%_0.14_205)] focus:ring-offset-2"
+              >
+                <span className="max-w-[10rem] truncate font-normal text-slate-500">
+                  {nextProject.name}
                 </span>
-              )}
-            </div>
+                <span>Next</span>
+                <span aria-hidden>→</span>
+              </Link>
+            ) : (
+              <span className="inline-flex min-h-10 items-center gap-2 px-2 text-sm text-slate-400">
+                Next <span aria-hidden>→</span>
+              </span>
+            )}
           </nav>
         </div>
 
-        <aside className="space-y-6 md:sticky md:top-6 md:self-start">
-          <div className={cardClass}>
-            <div className="flex flex-wrap justify-between items-start gap-3">
-              <div className="min-w-0">
-                <h1 className="text-xl font-semibold tracking-tight text-slate-900 mb-1.5">
-                  {project.name}
-                </h1>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={`inline-block size-2 rounded-full shrink-0 ${getStatusDotColor(project.status)}`}
-                    aria-hidden
-                  />
-                  <span className="text-sm text-slate-600">
-                    Last activity {formatLastActivity(project.lastUpdated)}
-                  </span>
-                  <span
-                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${getStatusColor(
-                      project.status,
-                    )}`}
-                  >
-                    {project.status.replace(/-/g, " ")}
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleTogglePin}
-                className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-400/50 transition-colors"
-                aria-label={project.pinned ? "Unpin" : "Pin"}
-                title={project.pinned ? "Unpin" : "Pin"}
-              >
-                <span className={project.pinned ? "text-amber-500" : ""}>
-                  {project.pinned ? "🔖" : "📌"}
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {description && (
-            <div className={cardClass}>
-              <h2 className={sectionTitleClass}>Description</h2>
-              <p className="text-sm text-slate-700 whitespace-pre-wrap line-clamp-[12]">
-                {description}
-              </p>
-            </div>
-          )}
-
+        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           {project.techStack.length > 0 && (
             <div className={cardClass}>
-              <h2 className={sectionTitleClass}>Tech Stack</h2>
+              <h2 className={sectionTitleClass}>Tech stack</h2>
               <div className="flex flex-wrap gap-2">
                 {project.techStack.map((tech) => (
                   <span
                     key={tech}
-                    className="rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-medium text-slate-700 ring-1 ring-slate-200/60"
+                    className="rounded-md bg-[oklch(95%_0.07_310)] px-2.5 py-1 text-sm font-bold text-[oklch(38%_0.12_310)] ring-1 ring-[oklch(83%_0.09_310)]"
                   >
                     {tech}
                   </span>
@@ -812,25 +808,69 @@ export default function ProjectDetailPage() {
           )}
 
           <div className={cardClass}>
-            <h2 className={sectionTitleClass}>
-              Recent Activity
-              {gitCommits && gitCommits.length > 0
-                ? ` (${gitCommits.length} commit${gitCommits.length === 1 ? "" : "s"})`
-                : ""}
-            </h2>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className={`${sectionTitleClass} !mb-0`}>
+                <span aria-hidden>◷</span> Recent activity
+              </h2>
+              {gitCommits && gitCommits.length > 0 && (
+                <span className="rounded-full bg-[oklch(94%_0.04_245)] px-3 py-1 text-xs font-extrabold text-[oklch(30%_0.08_260)] ring-1 ring-[oklch(86%_0.05_250)]">
+                  {gitCommits.length} commit{gitCommits.length === 1 ? "" : "s"}
+                </span>
+              )}
+            </div>
             {gitCommitsLoading ? (
-              <p className="text-sm text-slate-500">Loading…</p>
+              <div className="space-y-3">
+                <div className="h-4 w-5/6 animate-pulse rounded bg-[oklch(94%_0.05_205)]" />
+                <div className="h-4 w-2/3 animate-pulse rounded bg-[oklch(95%_0.06_75)]" />
+                <div className="h-4 w-4/5 animate-pulse rounded bg-[oklch(95%_0.05_310)]" />
+              </div>
             ) : gitCommits && gitCommits.length > 0 ? (
-              <ul className="list-disc list-inside space-y-3 text-sm [&::marker]:text-blue-500">
-                {gitCommits.map((c) => (
-                  <li key={c.hash} className="flex flex-col gap-0.5">
-                    <span className="text-slate-800 font-medium leading-tight">{c.subject}</span>
-                    <span className="text-slate-500 text-xs">{formatCommitDate(c.date)}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="max-h-[34rem] overflow-y-auto pr-1">
+                <ul className="relative space-y-3 pl-7 text-sm before:absolute before:left-3 before:top-3 before:h-[calc(100%-1.5rem)] before:w-px before:bg-[oklch(86%_0.06_250)]">
+                  {gitCommits.map((commit, index) => (
+                    <li key={commit.hash} className="relative">
+                      <span className="absolute -left-7 top-3 z-10 inline-flex size-6 items-center justify-center rounded-full bg-[oklch(96%_0.055_245)] text-[oklch(48%_0.16_255)] ring-2 ring-[oklch(99%_0.006_245)]">
+                        <svg
+                          className="size-3.5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2.2}
+                          aria-hidden
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M7 8a4 4 0 0 1 8 0v8a4 4 0 1 1-4-4h6"
+                          />
+                        </svg>
+                      </span>
+                      <div className="rounded-lg border border-[oklch(88%_0.035_255)] bg-[oklch(99%_0.006_245)] px-3 py-3 shadow-sm">
+                        <div className="flex flex-wrap items-start gap-2">
+                          {index === 0 && (
+                            <span className="rounded-md bg-[oklch(90%_0.08_145)] px-2 py-0.5 text-[10px] font-extrabold text-[oklch(37%_0.13_150)]">
+                              Latest
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1 font-extrabold leading-5 text-[oklch(28%_0.07_260)]">
+                            {commit.subject}
+                          </span>
+                        </div>
+                        <span className="mt-2 block font-mono text-xs font-bold text-[oklch(47%_0.08_250)]">
+                          {commit.hash}
+                        </span>
+                        <span className="mt-1 block text-xs font-semibold text-[oklch(44%_0.07_250)]">
+                          {formatCommitDate(commit.date)}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : (
-              <p className="text-sm text-slate-500">No recent activity.</p>
+              <p className="text-sm font-medium text-[oklch(50%_0.07_260)]">
+                No recent commits found.
+              </p>
             )}
           </div>
         </aside>

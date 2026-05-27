@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: [],
   reactCompiler: true,
+  turbopack: {
+    root: process.cwd(),
+  },
   experimental: {
     turbopackFileSystemCacheForDev: true,
     turbopackFileSystemCacheForBuild: true,

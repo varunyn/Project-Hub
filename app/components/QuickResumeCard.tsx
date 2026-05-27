@@ -16,32 +16,34 @@ export default function QuickResumeCard({ project, onEdit, onDelete }: QuickResu
     : "No description";
 
   return (
-    <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 transition-all hover:border-slate-300 hover:shadow-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 flex flex-col gap-2">
+    <div className="group flex min-h-44 flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-950/[0.03] transition-[border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus-within:ring-2 focus-within:ring-blue-500/70 focus-within:ring-offset-2">
       <Link
         href={`/projects/${project.id}`}
-        className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-2"
+        className="block flex-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-2"
       >
-        <div className="flex justify-between items-start gap-2">
-          <h3 className="font-semibold text-slate-900 truncate">{project.name}</h3>
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="min-w-0 truncate text-[15px] font-semibold leading-6 text-slate-950">
+            {project.name}
+          </h3>
           <span
-            className={`shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${getStatusColor(
+            className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${getStatusColor(
               project.status,
             )}`}
           >
             {project.status.replace(/-/g, " ")}
           </span>
         </div>
-        <p className="text-sm text-slate-600 mt-1 line-clamp-2">{snippet}</p>
-        <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+        <p className="mt-1.5 line-clamp-2 text-sm leading-5 text-slate-600">{snippet}</p>
+        <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
           <span>{formatLastActivity(project.lastUpdated)}</span>
           {project.docCount != null && <span>{project.docCount} docs</span>}
         </div>
         {project.techStack.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {project.techStack.slice(0, 4).map((tech) => (
               <span
                 key={tech}
-                className="rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200/60"
+                className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200/70"
               >
                 {tech}
               </span>
@@ -50,7 +52,7 @@ export default function QuickResumeCard({ project, onEdit, onDelete }: QuickResu
         )}
       </Link>
       {(onEdit || onDelete) && (
-        <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+        <div className="mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-3">
           {onEdit && (
             <button
               type="button"
@@ -58,7 +60,7 @@ export default function QuickResumeCard({ project, onEdit, onDelete }: QuickResu
                 e.preventDefault();
                 onEdit(project);
               }}
-              className="text-xs text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300 rounded transition-colors"
+              className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
               aria-label={`Edit ${project.name}`}
             >
               Edit
@@ -71,7 +73,7 @@ export default function QuickResumeCard({ project, onEdit, onDelete }: QuickResu
                 e.preventDefault();
                 onDelete(project);
               }}
-              className="text-xs text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-200 rounded transition-colors"
+              className="rounded-md px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-200"
               aria-label={`Delete ${project.name}`}
             >
               Delete

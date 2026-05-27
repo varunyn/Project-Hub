@@ -8,10 +8,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sidebarId = "hs-sidebar-project-hub";
 
   return (
-    <div className="flex h-screen min-h-screen overflow-hidden bg-slate-50">
+    <div className="flex h-screen min-h-screen overflow-hidden bg-slate-100">
       <div
         id={sidebarId}
-        className="hs-overlay [--auto-close:lg] [--auto-close-equality-type:less-than] [--opened:lg] [--is-layout-affect:true] w-72 hs-overlay-open:translate-x-0 -translate-x-full transition-all duration-300 transform h-full hidden fixed top-0 start-0 bottom-0 z-[60] bg-slate-900 border-e border-slate-600/90 shadow-xl"
+        className="hs-overlay [--auto-close:lg] [--auto-close-equality-type:less-than] [--opened:lg] [--is-layout-affect:true] w-72 hs-overlay-open:translate-x-0 -translate-x-full transition-all duration-300 transform h-full hidden fixed top-0 start-0 bottom-0 z-[60] bg-slate-950 border-e border-slate-800 shadow-xl"
         role="dialog"
         tabIndex={-1}
         aria-label="Sidebar"
@@ -21,7 +21,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
 
-      <main className="relative flex min-h-0 min-h-screen min-w-0 flex-1 flex-col overflow-hidden border-l border-slate-200/80 bg-white shadow-[inset_2px_0_4px_0_rgba(15,23,42,0.04)]">
+      <main className="relative flex min-h-0 min-h-screen min-w-0 flex-1 flex-col overflow-hidden border-l border-slate-200/80 bg-slate-100 shadow-[inset_2px_0_4px_0_rgba(15,23,42,0.04)]">
         <div className="dashboard-main-content flex-1 min-h-0 overflow-auto transition-[margin] duration-300">
           <button
             type="button"
@@ -43,7 +43,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div className="min-h-full px-4 pb-8 pt-3 pl-16 sm:px-6 sm:pb-10 sm:pt-4 sm:pl-[4.5rem]">
+          <div className="min-h-full px-4 pb-8 pt-4 pl-16 sm:px-6 sm:pb-10 sm:pt-6 sm:pl-[4.5rem] lg:px-8">
             {children}
           </div>
         </div>

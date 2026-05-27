@@ -23,7 +23,7 @@ const PROJECT_MARKERS = [
 ];
 
 function normalizePath(filePath: string): string {
-  return path.normalize(path.resolve(filePath));
+  return path.normalize(path.resolve(/* turbopackIgnore: true */ filePath));
 }
 
 function hasProjectMarker(dirPath: string): boolean {

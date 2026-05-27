@@ -2,8 +2,8 @@
 @import "preline/variants.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: oklch(98.7% 0.006 245);
+  --foreground: oklch(20% 0.018 255);
 }
 
 @theme inline {
@@ -13,14 +13,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: oklch(18% 0.018 255);
+    --foreground: oklch(94% 0.01 245);
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: oklch(86% 0.08 230);
+  color: oklch(22% 0.04 245);
 }
 
 /* When Preline sidebar is open (layout-affect), push main content */
