@@ -47,7 +47,7 @@ export default function ProjectDetailPage() {
   const [isEditingProject, setIsEditingProject] = useState(false);
   const [goalInput, setGoalInput] = useState("");
 
-  const gitLogKey = project?.id ? `/api/projects/${project.id}/git-log` : null;
+  const gitLogKey = id ? `/api/projects/${id}/git-log` : null;
   const { data: gitCommits, isLoading: gitCommitsLoading } = useSWR<GitCommit[]>(
     gitLogKey,
     fetcherGitLog,

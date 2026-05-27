@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { memo } from "react";
 import type { Project } from "../types";
 import { formatLastActivity, getStatusColor } from "../utils/format";
 
@@ -10,13 +11,13 @@ interface QuickResumeCardProps {
   onDelete?: (project: Project) => void;
 }
 
-export default function QuickResumeCard({ project, onEdit, onDelete }: QuickResumeCardProps) {
+function QuickResumeCard({ project, onEdit, onDelete }: QuickResumeCardProps) {
   const snippet = project.readmePreview
     ? project.readmePreview.slice(0, 80).trim() + (project.readmePreview.length > 80 ? "…" : "")
     : "No description";
 
   return (
-    <div className="group flex min-h-44 flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-950/[0.03] transition-[border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus-within:ring-2 focus-within:ring-blue-500/70 focus-within:ring-offset-2">
+    <div className="group flex min-h-44 flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-950/[0.03] transition-[border-color,box-shadow,transform] duration-200 ease-out [contain-intrinsic-size:176px] [content-visibility:auto] hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus-within:ring-2 focus-within:ring-blue-500/70 focus-within:ring-offset-2">
       <Link
         href={`/projects/${project.id}`}
         className="block flex-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-2"
@@ -84,3 +85,5 @@ export default function QuickResumeCard({ project, onEdit, onDelete }: QuickResu
     </div>
   );
 }
+
+export default memo(QuickResumeCard);

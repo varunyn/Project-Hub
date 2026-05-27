@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
 export default function PrelineScript() {
-  const runPrelineAutoInit = () => {
+  const runPrelineAutoInit = useCallback(() => {
     if (
       typeof window !== "undefined" &&
       window.HSStaticMethods &&
@@ -11,7 +11,7 @@ export default function PrelineScript() {
     ) {
       window.HSStaticMethods.autoInit();
     }
-  };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,7 +31,7 @@ export default function PrelineScript() {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, []);
+  }, [runPrelineAutoInit]);
 
   return null;
 }

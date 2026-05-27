@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface SearchBarProps {
   searchQuery: string;
@@ -39,6 +39,19 @@ export default function SearchBar({
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [tagSearch, setTagSearch] = useState("");
   const tagPopoverRef = useRef<HTMLDivElement>(null);
+  const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
+
+  useEffect(() => {
+    setLocalSearchQuery(searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (localSearchQuery === searchQuery) return;
+    const timeoutId = setTimeout(() => {
+      onSearch(localSearchQuery);
+    }, 180);
+    return () => clearTimeout(timeoutId);
+  }, [localSearchQuery, onSearch, searchQuery]);
 
   useEffect(() => {
     if (!techPopoverOpen) return;
@@ -64,13 +77,15 @@ export default function SearchBar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [tagPopoverOpen]);
 
-  const filteredTechs = allTechStacks.filter((tech) =>
-    tech.toLowerCase().includes(techSearch.toLowerCase().trim()),
-  );
+  const filteredTechs = useMemo(() => {
+    const query = techSearch.toLowerCase().trim();
+    return allTechStacks.filter((tech) => tech.toLowerCase().includes(query));
+  }, [allTechStacks, techSearch]);
 
-  const filteredTags = allTags.filter((tag) =>
-    tag.toLowerCase().includes(tagSearch.toLowerCase().trim()),
-  );
+  const filteredTags = useMemo(() => {
+    const query = tagSearch.toLowerCase().trim();
+    return allTags.filter((tag) => tag.toLowerCase().includes(query));
+  }, [allTags, tagSearch]);
 
   const handleTechSelect = (tech: string | null) => {
     onFilterByTech(tech);
@@ -88,6 +103,7 @@ export default function SearchBar({
     setTechPopoverOpen(false);
     setTagSearch("");
     setTagPopoverOpen(false);
+    setLocalSearchQuery("");
     onSearch("");
     onFilterByTech(null);
     onFilterByStatus(null);
@@ -126,8 +142,8 @@ export default function SearchBar({
               id="search"
               className="w-full min-h-11 rounded-lg border border-slate-200 bg-white pl-10 pr-3 py-2 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
               placeholder="Search quests by name, path, or commit message..."
-              value={searchQuery}
-              onChange={(e) => onSearch(e.target.value)}
+              value={localSearchQuery}
+              onChange={(e) => setLocalSearchQuery(e.target.value)}
             />
           </div>
         </div>
