@@ -4,10 +4,9 @@
   "private": true,
   "packageManager": "pnpm@10.28.2",
   "scripts": {
-    "dev": "next dev -p 4003",
+    "dev": "next dev -p 3080",
     "build": "next build",
-    "start": "next start",
-    "start:3030": "next start -p 3030",
+    "start": "next start -p 3080",
     "lint": "biome check .",
     "format": "biome format --write .",
     "check": "biome check --write .",

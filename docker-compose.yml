@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3080:3030"
+      - "3080:3080"
     volumes:
       - "${HOST_PROJECTS_PATH}:/projects"
     environment:

@@ -70,16 +70,16 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:4003](http://localhost:4003).
+Open [http://localhost:3080](http://localhost:3080).
 
 ### Production Mode
 
 ```bash
 pnpm build
-pnpm start:3030
+pnpm start
 ```
 
-Open [http://localhost:3030](http://localhost:3030).
+Open [http://localhost:3080](http://localhost:3080).
 
 You can also use the included background scripts:
 
@@ -135,12 +135,12 @@ Each record can include:
 ## Useful Commands
 
 ```bash
-pnpm dev          # start Next.js on port 4003
+pnpm dev
 pnpm build        # create a production build
-pnpm start:3030   # run production server on port 3030
+pnpm start
 pnpm check        # run Biome checks and formatting
 pnpm check:ci     # run Biome in CI mode
-pnpm lint         # run ESLint
+pnpm lint         # run Biome checks
 ```
 
 ## Troubleshooting
