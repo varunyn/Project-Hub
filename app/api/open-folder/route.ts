@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
           error:
             "Open folder is not available on this system (e.g. when running in Docker). Use Copy path instead.",
         },
-        { status: 503 },
+        { status: 503 }
       );
     }
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
           ? "Open folder is not available (e.g. when running in Docker). Use Copy path instead."
           : "Failed to open folder",
       },
-      { status: notAvailable ? 503 : 500 },
+      { status: notAvailable ? 503 : 500 }
     );
   }
 }

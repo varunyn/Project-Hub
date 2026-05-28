@@ -12,7 +12,7 @@ export function resolveProjectPathForServer(projectPath: string): string {
     const normalized = path.normalize(projectPath);
     const normalizedHostRoot = path.normalize(hostRoot);
     const relative = path.relative(normalizedHostRoot, normalized);
-    if (!relative.startsWith("..") && !path.isAbsolute(relative)) {
+    if (!(relative.startsWith("..") || path.isAbsolute(relative))) {
       return path.join(containerRoot, relative);
     }
   }
@@ -55,7 +55,7 @@ async function queueProjectsWrite<T>(operation: () => T): Promise<T> {
   const queuedOperation = projectsWriteQueue.then(async () => operation());
   projectsWriteQueue = queuedOperation.then(
     () => undefined,
-    () => undefined,
+    () => undefined
   );
   return queuedOperation;
 }

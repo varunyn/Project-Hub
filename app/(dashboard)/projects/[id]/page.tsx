@@ -18,7 +18,11 @@ import {
   getStatusDotColor,
 } from "../../../utils/format";
 
-type GitCommit = { hash: string; subject: string; date: string };
+interface GitCommit {
+  hash: string;
+  subject: string;
+  date: string;
+}
 
 async function fetcherGitLog(url: string): Promise<GitCommit[]> {
   const res = await fetch(url);
@@ -44,36 +48,30 @@ export default function ProjectDetailPage() {
   const tagDropdownRef = useRef<HTMLDivElement>(null);
   const [noteInput, setNoteInput] = useState("");
   const [isEditingNote, setIsEditingNote] = useState(false);
-  const [isEditingProject, setIsEditingProject] = useState(false);
   const [goalInput, setGoalInput] = useState("");
+  const isEditingProject = searchParams.get("edit") === "1";
 
   const gitLogKey = id ? `/api/projects/${id}/git-log` : null;
   const { data: gitCommits, isLoading: gitCommitsLoading } = useSWR<GitCommit[]>(
     gitLogKey,
-    fetcherGitLog,
+    fetcherGitLog
   );
 
   useEffect(() => {
     if (id) pushRecentProjectId(id);
   }, [id]);
 
-  useEffect(() => {
-    if (searchParams.get("edit") === "1") {
-      setIsEditingProject(true);
-    }
-  }, [searchParams]);
-
   const sortedProjects = useMemo(
     () =>
       [...projects].sort(
-        (a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime(),
+        (a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
       ),
-    [projects],
+    [projects]
   );
 
   const currentIndex = useMemo(
     () => (id ? sortedProjects.findIndex((item) => item.id === id) : -1),
-    [id, sortedProjects],
+    [id, sortedProjects]
   );
   const prevProject = currentIndex > 0 ? sortedProjects[currentIndex - 1] : null;
   const nextProject =
@@ -94,13 +92,13 @@ export default function ProjectDetailPage() {
   const currentProjectTags = useMemo(() => new Set(project?.tags ?? []), [project?.tags]);
   const allTagsLowerSet = useMemo(
     () => new Set(allTagsFromProjects.map((tag) => tag.toLowerCase())),
-    [allTagsFromProjects],
+    [allTagsFromProjects]
   );
 
   const tagSuggestions = useMemo(() => {
     const query = tagInput.trim().toLowerCase();
     const existing = allTagsFromProjects.filter(
-      (tag) => !currentProjectTags.has(tag) && (!query || tag.toLowerCase().includes(query)),
+      (tag) => !currentProjectTags.has(tag) && (!query || tag.toLowerCase().includes(query))
     );
     const newTag = tagInput.trim();
     const canCreateNew =
@@ -164,7 +162,6 @@ export default function ProjectDetailPage() {
   }, [project, updateProject, refetch]);
 
   const handleCloseProjectEdit = useCallback(() => {
-    setIsEditingProject(false);
     if (id) router.replace(`/projects/${id}`);
   }, [id, router]);
 
@@ -175,7 +172,7 @@ export default function ProjectDetailPage() {
       handleCloseProjectEdit();
       refetch();
     },
-    [project, updateProject, handleCloseProjectEdit, refetch],
+    [project, updateProject, handleCloseProjectEdit, refetch]
   );
 
   useEffect(() => {
@@ -192,13 +189,13 @@ export default function ProjectDetailPage() {
   const handleAddTag = useCallback(
     async (tagToAdd?: string) => {
       const tag = (tagToAdd ?? tagInput).trim();
-      if (!tag || !project || currentProjectTags.has(tag)) return;
+      if (!(tag && project) || currentProjectTags.has(tag)) return;
       await updateProject({ tags: [...(project.tags ?? []), tag] });
       setTagInput("");
       setTagDropdownOpen(false);
       setTagHighlightIndex(0);
     },
-    [tagInput, project, currentProjectTags, updateProject],
+    [tagInput, project, currentProjectTags, updateProject]
   );
 
   const handleRemoveTag = useCallback(
@@ -206,7 +203,7 @@ export default function ProjectDetailPage() {
       if (!project?.tags) return;
       await updateProject({ tags: project.tags.filter((item) => item !== tag) });
     },
-    [project, updateProject],
+    [project, updateProject]
   );
 
   const handleAddNote = useCallback(async () => {
@@ -249,7 +246,7 @@ export default function ProjectDetailPage() {
 
   const handleAddGoal = useCallback(async () => {
     const goal = goalInput.trim();
-    if (!goal || !project) return;
+    if (!(goal && project)) return;
     await updateProject({ goals: [...(project.goals ?? []), goal] });
     setGoalInput("");
   }, [goalInput, project, updateProject]);
@@ -259,7 +256,7 @@ export default function ProjectDetailPage() {
       if (!project?.goals) return;
       await updateProject({ goals: project.goals.filter((item) => item !== goal) });
     },
-    [project, updateProject],
+    [project, updateProject]
   );
 
   if (loading && !project) {
@@ -357,7 +354,7 @@ export default function ProjectDetailPage() {
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <span
                 className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-extrabold capitalize ${getStatusColor(
-                  project.status,
+                  project.status
                 )}`}
               >
                 <span aria-hidden>●</span>
@@ -496,7 +493,11 @@ export default function ProjectDetailPage() {
               <h2 className={`${sectionTitleClass} !mb-0`}>Quest details</h2>
               <button
                 type="button"
-                onClick={() => setIsEditingProject((value) => !value)}
+                onClick={() => {
+                  if (!id) return;
+                  if (isEditingProject) router.replace(`/projects/${id}`);
+                  else router.replace(`/projects/${id}?edit=1`);
+                }}
                 className={btnSecondary}
                 aria-expanded={isEditingProject}
               >
@@ -621,7 +622,7 @@ export default function ProjectDetailPage() {
                     if (event.key === "ArrowUp" && tagOptionCount > 0) {
                       event.preventDefault();
                       setTagHighlightIndex(
-                        (index) => (tagOptionCount + index - 1) % tagOptionCount,
+                        (index) => (tagOptionCount + index - 1) % tagOptionCount
                       );
                     }
                   }}

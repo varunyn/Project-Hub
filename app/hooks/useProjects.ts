@@ -37,7 +37,7 @@ export function useProjects() {
         throw err;
       }
     },
-    [mutate],
+    [mutate]
   );
 
   const updateProject = useCallback(
@@ -54,7 +54,7 @@ export function useProjects() {
         throw err;
       }
     },
-    [mutate],
+    [mutate]
   );
 
   const removeProject = useCallback(
@@ -71,7 +71,7 @@ export function useProjects() {
         throw err;
       }
     },
-    [mutate],
+    [mutate]
   );
 
   const clearError = useCallback(() => {
@@ -89,7 +89,7 @@ export function useProjects() {
       const addedCount = Math.max(0, updated.length - projects.length);
       if (addedCount > 0) {
         setScanMessage(
-          `Scan complete: added ${addedCount} new quest${addedCount === 1 ? "" : "s"}.`,
+          `Scan complete: added ${addedCount} new quest${addedCount === 1 ? "" : "s"}.`
         );
       } else {
         setScanMessage("Scan complete: no new quests found.");

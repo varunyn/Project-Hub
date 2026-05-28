@@ -14,6 +14,11 @@ export interface Project {
   tags?: string[];
   notes?: string;
   goals?: string[];
+  mockCommits?: Array<{
+    hash: string;
+    subject: string;
+    date: string;
+  }>;
   devServerUrl?: string;
   startCommand?: string;
   docCount?: number;

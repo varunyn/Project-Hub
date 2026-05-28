@@ -12,6 +12,10 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
     console.log("[git-log] GET project id:", id);
     const projects = getProjects();
     const project = projects.find((p) => p.id === id);
+    if (project?.mockCommits?.length) {
+      return NextResponse.json({ commits: project.mockCommits.slice(0, MAX_COMMITS) });
+    }
+
     if (!project?.path) {
       console.log("[git-log] No project or path for id:", id);
       return NextResponse.json({ commits: [] });
@@ -45,7 +49,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
         const byName = withGit.find(
           (c) =>
             c.name.toLowerCase().replace(/\s+/g, "-") ===
-            project.name.toLowerCase().replace(/\s+/g, "-"),
+            project.name.toLowerCase().replace(/\s+/g, "-")
         );
         if (byName) workDir = path.join(dir, byName.name);
         else workDir = path.join(dir, withGit[0].name);

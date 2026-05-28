@@ -218,7 +218,7 @@ export default function SearchBar({
                     role="option"
                     aria-selected={!techFilter}
                     onClick={() => handleTechSelect(null)}
-                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${!techFilter ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${techFilter ? "text-slate-700 hover:bg-slate-50" : "bg-blue-50 text-blue-700 font-medium"}`}
                   >
                     All Technologies
                   </button>
@@ -365,7 +365,7 @@ export default function SearchBar({
                         setTagPopoverOpen(false);
                         setTagSearch("");
                       }}
-                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${!tagFilter ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${tagFilter ? "text-slate-700 hover:bg-slate-50" : "bg-blue-50 text-blue-700 font-medium"}`}
                     >
                       All tags
                     </button>

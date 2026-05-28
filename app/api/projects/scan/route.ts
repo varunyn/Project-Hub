@@ -37,7 +37,7 @@ function detectTechStack(dirPath: string): string[] {
     techStack.add("JavaScript");
     try {
       const packageJson = JSON.parse(
-        fs.readFileSync(path.join(dirPath, "package.json"), "utf8"),
+        fs.readFileSync(path.join(dirPath, "package.json"), "utf8")
       ) as {
         dependencies?: Record<string, string>;
         devDependencies?: Record<string, string>;
@@ -132,7 +132,7 @@ function resolveProjectPathForStorage(projectPath: string): string {
     const normalized = normalizePath(projectPath);
     const normalizedContainerRoot = normalizePath(containerRoot);
     const relative = path.relative(normalizedContainerRoot, normalized);
-    if (!relative.startsWith("..") && !path.isAbsolute(relative)) {
+    if (!(relative.startsWith("..") || path.isAbsolute(relative))) {
       return path.join(hostRoot, relative);
     }
   }
@@ -153,13 +153,13 @@ export async function POST() {
           error:
             "Project scan root is not configured. Set HOST_PROJECTS_PATH (and CONTAINER_PROJECTS_ROOT in Docker) in your .env file.",
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     const existingProjects = getProjects();
     const existingPaths = new Set(
-      existingProjects.map((project) => normalizePath(resolveProjectPathForServer(project.path))),
+      existingProjects.map((project) => normalizePath(resolveProjectPathForServer(project.path)))
     );
     const discoveredPaths = new Set<string>();
 
@@ -182,7 +182,7 @@ export async function POST() {
           error:
             "Configured scan roots are not accessible from this runtime. In Docker, verify CONTAINER_PROJECTS_ROOT points to your mounted volume (e.g. /projects).",
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
 

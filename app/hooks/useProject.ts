@@ -22,7 +22,7 @@ export function useProject(id: string | null) {
       await apiUpdateProject(id, data);
       mutate((prev) => (prev ? { ...prev, ...data } : undefined), false);
     },
-    [id, mutate],
+    [id, mutate]
   );
 
   return {

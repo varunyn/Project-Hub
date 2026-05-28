@@ -28,7 +28,7 @@ function useFiltersFromUrl() {
       else p.delete("q");
       router.replace(`${pathname}?${p.toString()}`);
     },
-    [pathname, router, searchParams],
+    [pathname, router, searchParams]
   );
 
   const setTechFilter = useCallback(
@@ -38,7 +38,7 @@ function useFiltersFromUrl() {
       else p.delete("tech");
       router.replace(`${pathname}?${p.toString()}`);
     },
-    [pathname, router, searchParams],
+    [pathname, router, searchParams]
   );
 
   const setStatusFilter = useCallback(
@@ -48,7 +48,7 @@ function useFiltersFromUrl() {
       else p.delete("status");
       router.replace(`${pathname}?${p.toString()}`);
     },
-    [pathname, router, searchParams],
+    [pathname, router, searchParams]
   );
 
   const setProjectTypeFilter = useCallback(
@@ -58,7 +58,7 @@ function useFiltersFromUrl() {
       else p.delete("type");
       router.replace(`${pathname}?${p.toString()}`);
     },
-    [pathname, router, searchParams],
+    [pathname, router, searchParams]
   );
 
   const setTagFilter = useCallback(
@@ -68,7 +68,7 @@ function useFiltersFromUrl() {
       else p.delete("tag");
       router.replace(`${pathname}?${p.toString()}`);
     },
-    [pathname, router, searchParams],
+    [pathname, router, searchParams]
   );
 
   return {
@@ -115,6 +115,7 @@ function HomeContent() {
 
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [renderedAt] = useState(() => Date.now());
   type SortKey = "status" | "lastActivity";
   const [sortBy, setSortBy] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -175,25 +176,27 @@ function HomeContent() {
     });
   }, [filteredProjects, sortBy, sortDir]);
 
-  const quickResumeProjects = useMemo(() => {
-    return [...projects]
-      .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
-      .slice(0, 12);
-  }, [projects]);
+  const quickResumeProjects = useMemo(
+    () =>
+      [...projects]
+        .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
+        .slice(0, 12),
+    [projects]
+  );
 
   const activeThisWeekCount = useMemo(() => {
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const weekAgo = new Date(renderedAt - 7 * 24 * 60 * 60 * 1000);
     return projects.filter((project) => new Date(project.lastUpdated) >= weekAgo).length;
-  }, [projects]);
+  }, [projects, renderedAt]);
 
   const pinnedCount = useMemo(
     () => projects.filter((project) => project.pinned).length,
-    [projects],
+    [projects]
   );
 
   const completedCount = useMemo(
     () => projects.filter((project) => project.status === "completed").length,
-    [projects],
+    [projects]
   );
 
   const handleAddProject = useCallback(
@@ -201,7 +204,7 @@ function HomeContent() {
       await addProject(projectData);
       setShowForm(false);
     },
-    [addProject],
+    [addProject]
   );
 
   const handleUpdateProject = useCallback(
@@ -211,14 +214,14 @@ function HomeContent() {
       setEditingProject(null);
       setShowForm(false);
     },
-    [editingProject, updateProject],
+    [editingProject, updateProject]
   );
 
   const handleEditProject = useCallback(
     (project: Project) => {
       router.push(`/projects/${project.id}?edit=1`);
     },
-    [router],
+    [router]
   );
 
   const handleDeleteProject = useCallback(
@@ -226,7 +229,7 @@ function HomeContent() {
       if (!confirm(`Delete quest "${project.name}"? This cannot be undone.`)) return;
       await deleteProject(project.id);
     },
-    [deleteProject],
+    [deleteProject]
   );
 
   const handleFormSubmit = useCallback(
@@ -237,7 +240,7 @@ function HomeContent() {
         handleAddProject(projectData);
       }
     },
-    [editingProject, handleAddProject, handleUpdateProject],
+    [editingProject, handleAddProject, handleUpdateProject]
   );
 
   const handleFormCancel = useCallback(() => {
@@ -249,7 +252,7 @@ function HomeContent() {
     async (project: Project) => {
       await updateProject(project.id, { pinned: !project.pinned });
     },
-    [updateProject],
+    [updateProject]
   );
 
   const handleSort = useCallback((key: SortKey) => {
@@ -577,7 +580,7 @@ function HomeContent() {
                         <td className="px-4 py-3">
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${getStatusColor(
-                              project.status,
+                              project.status
                             )}`}
                           >
                             {project.status.replace(/-/g, " ")}
