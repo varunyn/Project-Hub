@@ -81,13 +81,6 @@ pnpm start
 
 Open [http://localhost:3080](http://localhost:3080).
 
-You can also use the included background scripts:
-
-```bash
-./start.sh
-./stop.sh
-```
-
 ## Docker
 
 Copy the example environment file and set the parent folder that contains your projects:
