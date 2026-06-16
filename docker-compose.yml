@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runner
     ports:
       - "3080:3080"
     volumes:
