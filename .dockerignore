@@ -53,3 +53,10 @@ coverage
 .eslintcache
 .pre-commit-config.yaml
 .codegraph
+
+# Files needed by the optional Docker Compose MCP profile
+!mcp/
+mcp/**
+!mcp/server.py
+!mcp/pyproject.toml
+!mcp/uv.lock

@@ -26,3 +26,22 @@ services:
       - DEPENDENCY_REPORT_AI_KEY_ENV=${DEPENDENCY_REPORT_AI_KEY_ENV:-}
       - DEPENDENCY_REPORT_COMMAND=${DEPENDENCY_REPORT_COMMAND:-python3 /app/tools/dependency-reporter/dependency_reporter.py --config <generated from projects.json>}
     restart: unless-stopped
+
+  mcp:
+    profiles:
+      - mcp
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mcp
+    ports:
+      - "${MCP_HTTP_PORT:-8070}:8000"
+    volumes:
+      - "${PROJECT_DATA_PATH:-./app/data}:/app-data"
+      - "${HOST_PROJECTS_PATH}:/projects"
+    environment:
+      - PROJECT_DATA_DIR=/app-data
+      - HOST_PROJECTS_ROOT=${HOST_PROJECTS_PATH}
+      - CONTAINER_PROJECTS_ROOT=/projects
+      - DEPENDENCY_REPORT_OUTPUT_DIR=/app-data/dependency-reports
+    restart: unless-stopped
