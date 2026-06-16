@@ -30,7 +30,7 @@ app.pid
 logs.txt
 
 # local project data (user-specific, do not commit)
-app/data/projects.json
+app/data/projects*.json
 
 # debug
 npm-debug.log*
@@ -57,3 +57,13 @@ __pycache__/
 .cursor
 # next-agents-md
 .next-docs/
+
+.cursor/
+.agents/
+skills-lock.json
+
+# generated dependency reporter output
+outputs/dependency-report-*.json
+outputs/dependency-report-*.md
+app/data/dependency-reports/
+.codegraph

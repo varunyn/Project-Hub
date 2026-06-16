@@ -8,9 +8,21 @@ services:
     ports:
       - "3080:3080"
     volumes:
+      - "${PROJECT_DATA_PATH:-./app/data}:/app-data"
       - "${HOST_PROJECTS_PATH}:/projects"
     environment:
       - NODE_ENV=production
+      - PROJECT_DATA_DIR=/app-data
       - HOST_PROJECTS_ROOT=${HOST_PROJECTS_PATH}
       - CONTAINER_PROJECTS_ROOT=/projects
+      - DEPENDENCY_REPORT_OUTPUT_DIR=/app-data/dependency-reports
+      - DEPENDENCY_REPORT_RUN_ENABLED=${DEPENDENCY_REPORT_RUN_ENABLED:-true}
+      - DEPENDENCY_REPORT_SCRIPT=/app/tools/dependency-reporter/dependency_reporter.py
+      - DEPENDENCY_REPORT_RELEASE_INTELLIGENCE_ENABLED=${DEPENDENCY_REPORT_RELEASE_INTELLIGENCE_ENABLED:-true}
+      - DEPENDENCY_REPORT_RELEASE_MAX_PACKAGES=${DEPENDENCY_REPORT_RELEASE_MAX_PACKAGES:-25}
+      - DEPENDENCY_REPORT_AI_ENABLED=${DEPENDENCY_REPORT_AI_ENABLED:-false}
+      - DEPENDENCY_REPORT_AI_BASE_URL=${DEPENDENCY_REPORT_AI_BASE_URL:-http://host.docker.internal:3001/v1}
+      - DEPENDENCY_REPORT_AI_MODEL=${DEPENDENCY_REPORT_AI_MODEL:-meta.llama-4-scout-17b-16e-instruct}
+      - DEPENDENCY_REPORT_AI_KEY_ENV=${DEPENDENCY_REPORT_AI_KEY_ENV:-}
+      - DEPENDENCY_REPORT_COMMAND=${DEPENDENCY_REPORT_COMMAND:-python3 /app/tools/dependency-reporter/dependency_reporter.py --config <generated from projects.json>}
     restart: unless-stopped

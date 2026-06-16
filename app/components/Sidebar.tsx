@@ -82,6 +82,29 @@ export default function Sidebar({ projects, sidebarId }: SidebarProps) {
             </svg>
             <span className="truncate">Quests</span>
           </Link>
+          <Link
+            className={`mt-1 flex min-h-10 items-center gap-2 rounded-lg px-1 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500/70 ${
+              pathname === "/dependencies" ? "text-white" : "text-slate-400 hover:text-slate-200"
+            }`}
+            href="/dependencies"
+          >
+            <svg
+              aria-hidden
+              className="h-4 w-4 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M7.5 7.5h9m-9 4.5h9m-9 4.5h5.25M5.25 3.75h13.5A1.5 1.5 0 0 1 20.25 5.25v13.5a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5V5.25a1.5 1.5 0 0 1 1.5-1.5Z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="truncate">Dependency updates</span>
+          </Link>
         </div>
         <div className="shrink-0 -me-2">
           <button

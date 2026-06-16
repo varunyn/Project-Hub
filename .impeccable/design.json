@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-16T16:56:27Z",
+  "title": "Design System: Project Hub",
+  "extensions": {
+    "colorMeta": {
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Canvas Mist",
+        "canonical": "oklch(98.7% 0.006 245)",
+        "tonalRamp": [
+          "oklch(99% 0.004 245)",
+          "oklch(98.7% 0.006 245)",
+          "oklch(94% 0.012 245)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Panel White",
+        "canonical": "oklch(99% 0.006 245)",
+        "tonalRamp": [
+          "oklch(99.5% 0.004 245)",
+          "oklch(99% 0.006 245)",
+          "oklch(97% 0.018 245)"
+        ]
+      },
+      "surface-sidebar": {
+        "role": "neutral",
+        "displayName": "Sidebar Ink",
+        "canonical": "oklch(12% 0.025 260)",
+        "tonalRamp": [
+          "oklch(18% 0.026 260)",
+          "oklch(12% 0.025 260)",
+          "oklch(8% 0.02 260)"
+        ]
+      },
+      "primary": {
+        "role": "primary",
+        "displayName": "Deep Console Slate",
+        "canonical": "oklch(28% 0.08 265)",
+        "tonalRamp": [
+          "oklch(34% 0.1 265)",
+          "oklch(28% 0.08 265)",
+          "oklch(22% 0.06 265)"
+        ]
+      },
+      "info": {
+        "role": "secondary",
+        "displayName": "Operational Blue",
+        "canonical": "oklch(45% 0.13 230)",
+        "tonalRamp": [
+          "oklch(94% 0.04 230)",
+          "oklch(74% 0.12 230 / 0.28)",
+          "oklch(45% 0.13 230)"
+        ]
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Status Green",
+        "canonical": "oklch(36% 0.13 145)",
+        "tonalRamp": [
+          "oklch(97% 0.045 140)",
+          "oklch(62% 0.17 145)",
+          "oklch(36% 0.13 145)"
+        ]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Maintenance Amber",
+        "canonical": "oklch(58% 0.14 75)",
+        "tonalRamp": [
+          "oklch(99% 0.035 75)",
+          "oklch(78% 0.16 75)",
+          "oklch(58% 0.14 75)"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Risk Red",
+        "canonical": "oklch(50% 0.16 25)",
+        "tonalRamp": [
+          "oklch(99% 0.015 25)",
+          "oklch(78% 0.13 25)",
+          "oklch(50% 0.16 25)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Large screen titles only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Primary dashboard and detail headings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card, table, and panel headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Descriptions, cells, helper text, and labels that are not uppercase."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Eyebrows, table heads, and compact metadata."
+      }
+    },
+    "shadows": [
+      {
+        "name": "surface-low",
+        "value": "shadow-sm plus ring-1 ring-slate-950/[0.03]",
+        "purpose": "Default cards, panels, tables, and search/filter surfaces."
+      },
+      {
+        "name": "surface-hover",
+        "value": "shadow-md",
+        "purpose": "Clickable project cards on hover."
+      },
+      {
+        "name": "overlay",
+        "value": "shadow-lg or shadow-xl",
+        "purpose": "Popovers, drawers, sidebars, and overlays."
+      },
+      {
+        "name": "detail-lift",
+        "value": "0 1px 2px oklch(25% 0.04 260 / 0.08)",
+        "purpose": "OKLCH-native detail surfaces."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-transition",
+        "value": "150ms-250ms ease-out",
+        "purpose": "Color, shadow, and transform feedback for controls."
+      },
+      {
+        "name": "sidebar-transition",
+        "value": "300ms ease-out",
+        "purpose": "Sidebar reveal and layout-affecting margin transition."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "High-emphasis local action such as Add quest or Run report.",
+      "html": "<button class=\"ds-btn-primary\">Run report</button>",
+      "css": ".ds-btn-primary { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 8px; background: oklch(28% 0.08 265); color: oklch(99% 0.006 245); padding: 8px 16px; font: 600 14px/1.5 Inter, system-ui, sans-serif; letter-spacing: 0; box-shadow: 0 1px 2px oklch(25% 0.04 260 / 0.08); transition: background-color 180ms ease-out; } .ds-btn-primary:hover { background: oklch(34% 0.1 265); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(74% 0.12 230); outline-offset: 2px; }"
+    },
+    {
+      "name": "Card Surface",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Default content grouping surface.",
+      "html": "<section class=\"ds-card\"><h2>Quest details</h2><p>Local metadata and maintenance state.</p></section>",
+      "css": ".ds-card { border: 1px solid oklch(88% 0.03 255); border-radius: 8px; background: oklch(99% 0.006 245); color: oklch(20% 0.018 255); padding: 16px; box-shadow: 0 1px 2px oklch(25% 0.04 260 / 0.08); } .ds-card h2 { margin: 0 0 12px; font: 600 16px/1.5 Inter, system-ui, sans-serif; letter-spacing: 0; } .ds-card p { margin: 0; font: 400 14px/1.5 Inter, system-ui, sans-serif; color: oklch(50% 0.055 260); }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Standard text input, select, and textarea surface.",
+      "html": "<label class=\"ds-field\"><span>Search</span><input placeholder=\"Search quests\" /></label>",
+      "css": ".ds-field { display: grid; gap: 4px; font: 500 14px/1.5 Inter, system-ui, sans-serif; color: oklch(34% 0.07 260); } .ds-field input { min-height: 44px; border: 1px solid oklch(88% 0.03 255); border-radius: 8px; background: oklch(99% 0.006 245); color: oklch(20% 0.018 255); padding: 8px 12px; font: 400 14px/1.5 Inter, system-ui, sans-serif; } .ds-field input:focus { border-color: oklch(67% 0.14 230); outline: 2px solid oklch(74% 0.12 230 / 0.28); outline-offset: 0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Local Operations Console",
+    "overview": "Project Hub is a quiet, dense product interface for one developer managing local projects. It should feel structured, inspectable, and ready for repeated daily use.",
+    "keyCharacteristics": [
+      "Restrained slate-tinted neutrals with one deep blue-slate primary action color.",
+      "Dense but readable product typography using Inter and system fallbacks.",
+      "8px-radius controls and cards, with subtle borders and low shadows.",
+      "Concrete local context stays visible."
+    ],
+    "rules": [
+      {
+        "name": "The Local Truth Rule",
+        "body": "Color must clarify state, selection, or action priority. It should not decorate maintenance data.",
+        "section": "colors"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "Do not stack heavy shadows on ordinary cards. Use border, ring, and background tone first.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep the current quest, dependency health, or maintenance summary visible above detailed lists.",
+      "Do use concrete local truth: paths, commands, report timestamps, git hashes, and warnings.",
+      "Do use OKLCH values for new hand-authored color values."
+    ],
+    "donts": [
+      "Don't use flashy AI-dashboard styling.",
+      "Don't use decorative marketing-page drama.",
+      "Don't introduce oversized hero layouts.",
+      "Don't write vague productivity copy.",
+      "Don't bury local developer actions behind ornamental UI.",
+      "Don't use gradient text, glassmorphism, side-stripe accents, or repeated icon-card grids as default patterns."
+    ]
+  }
+}

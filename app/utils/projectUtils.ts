@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Project } from "../types";
 
-const dataDir = path.join(process.cwd(), "app", "data");
+const dataDir = process.env.PROJECT_DATA_DIR || path.join(process.cwd(), "app", "data");
 const projectsFilePath = path.join(dataDir, "projects.json");
 
 export function resolveProjectPathForServer(projectPath: string): string {

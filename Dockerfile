@@ -17,7 +17,7 @@ RUN pnpm build
 
 # ---- Runner ----
 FROM node:22-alpine AS runner
-RUN apk add --no-cache git
+RUN apk add --no-cache git python3 && corepack enable && corepack prepare pnpm@10.28.2 --activate
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -26,6 +26,7 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/tools ./tools
 USER nextjs
 EXPOSE 3080
 ENV PORT=3080

@@ -1,0 +1,20 @@
+scan_roots:
+  - /path/to/your/projects
+output_dir: outputs
+ignore_dirs:
+  - .git
+  - node_modules
+  - .venv
+  - venv
+  - __pycache__
+  - dist
+  - build
+  - .next
+release_intelligence:
+  enabled: true
+  max_packages: 25
+ai:
+  enabled: true
+  base_url: http://localhost:3001/v1
+  model: meta.llama-4-scout-17b-16e-instruct
+  api_key_env:

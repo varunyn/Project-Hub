@@ -6,6 +6,7 @@ import { notFound, useParams, useRouter, useSearchParams } from "next/navigation
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { siCursor } from "simple-icons";
 import useSWR from "swr";
+import ProjectDependencyUpdates from "../../../components/ProjectDependencyUpdates";
 import ProjectForm from "../../../components/ProjectForm";
 import { pushRecentProjectId } from "../../../components/Sidebar";
 import { useProject } from "../../../hooks/useProject";
@@ -285,37 +286,37 @@ export default function ProjectDetailPage() {
   const cardClass =
     "rounded-lg border border-[oklch(88%_0.03_255)] bg-[oklch(99%_0.006_245)] p-4 shadow-[0_1px_2px_oklch(25%_0.04_260_/_0.08)] ring-1 ring-[oklch(96%_0.025_255)]";
   const sectionTitleClass =
-    "mb-3 text-base font-extrabold tracking-tight text-[oklch(25%_0.07_260)]";
+    "mb-3 text-base font-semibold tracking-tight text-[oklch(25%_0.07_260)]";
   const btnPrimary =
-    "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-[oklch(28%_0.08_265)] px-3 py-1.5 text-sm font-bold text-[oklch(98%_0.006_250)] shadow-sm transition-colors hover:bg-[oklch(34%_0.1_265)] focus:outline-none focus:ring-2 focus:ring-[oklch(72%_0.14_250)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-[oklch(91%_0.025_255)] disabled:text-[oklch(62%_0.05_255)] disabled:shadow-none";
+    "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-[oklch(28%_0.08_265)] px-3 py-1.5 text-sm font-semibold text-[oklch(98%_0.006_250)] shadow-sm transition-colors hover:bg-[oklch(34%_0.1_265)] focus:outline-none focus:ring-2 focus:ring-[oklch(72%_0.14_250)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-[oklch(91%_0.025_255)] disabled:text-[oklch(62%_0.05_255)] disabled:shadow-none";
   const btnSecondary =
-    "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[oklch(88%_0.035_255)] bg-[oklch(99%_0.006_245)] px-3 py-1.5 text-sm font-bold text-[oklch(34%_0.07_255)] shadow-sm transition-colors hover:bg-[oklch(97%_0.025_245)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.1_230)] focus:ring-offset-2";
+    "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[oklch(88%_0.035_255)] bg-[oklch(99%_0.006_245)] px-3 py-1.5 text-sm font-semibold text-[oklch(34%_0.07_255)] shadow-sm transition-colors hover:bg-[oklch(97%_0.025_245)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.1_230)] focus:ring-offset-2";
   const btnDanger =
     "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[oklch(86%_0.08_25)] bg-[oklch(99%_0.015_25)] px-3 py-1.5 text-sm font-semibold text-[oklch(50%_0.16_25)] shadow-[0_2px_0_oklch(90%_0.06_25)] transition-colors hover:bg-[oklch(96%_0.045_25)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.13_25)] focus:ring-offset-2";
   const inputClass =
     "w-full min-h-9 rounded-lg border border-[oklch(88%_0.035_255)] bg-[oklch(99%_0.006_245)] px-3 py-1.5 text-sm text-[oklch(24%_0.045_260)] placeholder:text-[oklch(62%_0.055_255)] transition-colors focus:border-[oklch(67%_0.14_230)] focus:outline-none focus:ring-2 focus:ring-[oklch(74%_0.12_230_/_0.28)]";
   const actionPrimary =
-    "inline-flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg bg-[linear-gradient(135deg,oklch(28%_0.09_265),oklch(33%_0.13_255))] px-3 py-3 text-sm font-extrabold text-[oklch(98%_0.006_250)] shadow-[0_2px_8px_oklch(30%_0.09_265_/_0.22)] transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[oklch(72%_0.14_250)] focus:ring-offset-2";
+    "inline-flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg bg-[oklch(28%_0.08_265)] px-3 py-3 text-sm font-semibold text-[oklch(98%_0.006_250)] shadow-sm transition-colors hover:bg-[oklch(34%_0.1_265)] focus:outline-none focus:ring-2 focus:ring-[oklch(72%_0.14_250)] focus:ring-offset-2";
   const actionSecondary =
-    "inline-flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border border-[oklch(88%_0.035_255)] bg-[oklch(99%_0.006_245)] px-3 py-3 text-sm font-extrabold text-[oklch(28%_0.07_260)] shadow-sm transition-transform hover:-translate-y-0.5 hover:bg-[oklch(97%_0.02_245)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.1_230)] focus:ring-offset-2";
+    "inline-flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border border-[oklch(88%_0.035_255)] bg-[oklch(99%_0.006_245)] px-3 py-3 text-sm font-semibold text-[oklch(28%_0.07_260)] shadow-sm transition-colors hover:bg-[oklch(97%_0.02_245)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.1_230)] focus:ring-offset-2";
   const description = project.notes?.trim() || project.readmePreview?.trim() || null;
   const hasTagInput = tagInput.trim().length > 0;
   const hasGoalInput = goalInput.trim().length > 0;
   const hasNoteInput = noteInput.trim().length > 0;
 
   return (
-    <div className="mx-auto w-full max-w-7xl rounded-xl border border-[oklch(88%_0.03_255)] bg-[oklch(99%_0.006_245)] p-5 shadow-[0_8px_24px_oklch(28%_0.05_260_/_0.08)] ring-1 ring-[oklch(96%_0.025_255)]">
+    <div className="mx-auto w-full max-w-7xl">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <Link
           href="/"
-          className="inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-sm font-extrabold text-[oklch(28%_0.08_265)] transition-colors hover:bg-[oklch(97%_0.025_245)] focus:outline-none focus:ring-2 focus:ring-[oklch(74%_0.12_230)]"
+          className="inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[oklch(28%_0.08_265)] transition-colors hover:bg-[oklch(97%_0.025_245)] focus:outline-none focus:ring-2 focus:ring-[oklch(74%_0.12_230)]"
         >
           <span aria-hidden>←</span> Back to Quests
         </Link>
         <button
           type="button"
           onClick={handleTogglePin}
-          className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-[oklch(83%_0.1_75)] bg-[oklch(99%_0.035_75)] px-3 py-1.5 text-sm font-bold text-[oklch(37%_0.09_75)] shadow-sm transition-colors hover:bg-[oklch(96%_0.06_75)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.16_75)] focus:ring-offset-2"
+          className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-[oklch(88%_0.07_75)] bg-[oklch(99%_0.025_75)] px-3 py-1.5 text-sm font-semibold text-[oklch(37%_0.09_75)] shadow-sm transition-colors hover:bg-[oklch(96%_0.045_75)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.16_75)] focus:ring-offset-2"
           aria-label={project.pinned ? "Unpin quest" : "Pin quest"}
         >
           <svg
@@ -337,13 +338,13 @@ export default function ProjectDetailPage() {
         </button>
       </div>
 
-      <section className="mb-5 overflow-hidden rounded-lg border border-[oklch(85%_0.04_250)] bg-[linear-gradient(135deg,oklch(98%_0.03_230),oklch(99%_0.012_245)_45%,oklch(98%_0.035_80))] p-5 ring-1 ring-[oklch(97%_0.035_250)]">
+      <section className="mb-5 overflow-hidden rounded-lg border border-[oklch(88%_0.03_255)] bg-[oklch(99%_0.006_245)] p-5 shadow-[0_1px_2px_oklch(25%_0.04_260_/_0.08)] ring-1 ring-[oklch(96%_0.025_255)]">
         <div className="flex flex-wrap items-center justify-between gap-5">
           <div className="min-w-0">
-            <p className="mb-1 text-xs font-extrabold uppercase tracking-wide text-[oklch(45%_0.13_205)]">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[oklch(45%_0.13_205)]">
               Quest
             </p>
-            <h1 className="text-2xl font-extrabold tracking-tight text-[oklch(24%_0.08_265)]">
+            <h1 className="text-2xl font-semibold tracking-tight text-[oklch(24%_0.08_265)]">
               {project.name}
             </h1>
             {description && (
@@ -353,7 +354,7 @@ export default function ProjectDetailPage() {
             )}
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <span
-                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-extrabold capitalize ${getStatusColor(
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold capitalize ${getStatusColor(
                   project.status
                 )}`}
               >
@@ -550,6 +551,8 @@ export default function ProjectDetailPage() {
             </dl>
           </section>
 
+          {project.path && <ProjectDependencyUpdates projectPath={project.path} />}
+
           {description && (
             <section className={cardClass}>
               <h2 className={sectionTitleClass}>Summary</h2>
@@ -560,14 +563,12 @@ export default function ProjectDetailPage() {
           )}
 
           <section className={cardClass}>
-            <h2 className={sectionTitleClass}>
-              <span aria-hidden>◇</span> Tags
-            </h2>
+            <h2 className={sectionTitleClass}>Tags</h2>
             <div className="mb-3 flex flex-wrap gap-2">
               {(project.tags ?? []).map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex min-h-7 items-center gap-1 rounded-md bg-[oklch(94%_0.07_205)] px-2 py-0.5 text-sm font-bold text-[oklch(34%_0.1_225)] ring-1 ring-[oklch(80%_0.1_205)]"
+                  className="inline-flex min-h-7 items-center gap-1 rounded-md bg-[oklch(96%_0.03_230)] px-2 py-0.5 text-sm font-medium text-[oklch(34%_0.08_245)] ring-1 ring-[oklch(86%_0.06_230)]"
                 >
                   {tag}
                   <button
@@ -654,7 +655,7 @@ export default function ProjectDetailPage() {
                         aria-selected={effectiveHighlightIndex === index}
                         className={`block w-full px-3 py-2 text-left text-sm ${
                           effectiveHighlightIndex === index
-                            ? "bg-[oklch(94%_0.07_205)] text-[oklch(31%_0.12_230)]"
+                            ? "bg-[oklch(96%_0.03_230)] text-[oklch(31%_0.12_230)]"
                             : "text-slate-700 hover:bg-[oklch(97%_0.035_205)]"
                         }`}
                         onMouseDown={(event) => {
@@ -673,7 +674,7 @@ export default function ProjectDetailPage() {
                         aria-selected={effectiveHighlightIndex === tagSuggestions.existing.length}
                         className={`block w-full border-t border-slate-100 px-3 py-2 text-left text-sm ${
                           effectiveHighlightIndex === tagSuggestions.existing.length
-                            ? "bg-[oklch(94%_0.07_205)] text-[oklch(31%_0.12_230)]"
+                            ? "bg-[oklch(96%_0.03_230)] text-[oklch(31%_0.12_230)]"
                             : "text-slate-600 hover:bg-[oklch(97%_0.035_205)]"
                         }`}
                         onMouseDown={(event) => {
@@ -699,9 +700,7 @@ export default function ProjectDetailPage() {
           </section>
 
           <section className={cardClass}>
-            <h2 className={sectionTitleClass}>
-              <span aria-hidden>▣</span> Notes
-            </h2>
+            <h2 className={sectionTitleClass}>Notes</h2>
             {isEditingNote ? (
               <div className="flex flex-col gap-3">
                 <textarea
@@ -765,9 +764,7 @@ export default function ProjectDetailPage() {
           </section>
 
           <section className={cardClass}>
-            <h2 className={sectionTitleClass}>
-              <span aria-hidden>◎</span> Goals
-            </h2>
+            <h2 className={sectionTitleClass}>Goals</h2>
             <ul className="mb-3 space-y-1.5 text-sm text-slate-700">
               {(project.goals ?? []).map((goal) => (
                 <li
@@ -861,7 +858,7 @@ export default function ProjectDetailPage() {
                 {project.techStack.map((tech) => (
                   <span
                     key={tech}
-                    className="rounded-md bg-[oklch(95%_0.07_310)] px-2.5 py-1 text-sm font-bold text-[oklch(38%_0.12_310)] ring-1 ring-[oklch(83%_0.09_310)]"
+                    className="rounded-md bg-[oklch(96%_0.02_250)] px-2.5 py-1 text-sm font-medium text-[oklch(34%_0.07_260)] ring-1 ring-[oklch(88%_0.035_255)]"
                   >
                     {tech}
                   </span>
@@ -872,11 +869,9 @@ export default function ProjectDetailPage() {
 
           <div className={cardClass}>
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className={`${sectionTitleClass} !mb-0`}>
-                <span aria-hidden>◷</span> Recent activity
-              </h2>
+              <h2 className={`${sectionTitleClass} !mb-0`}>Recent activity</h2>
               {gitCommits && gitCommits.length > 0 && (
-                <span className="rounded-full bg-[oklch(94%_0.04_245)] px-3 py-1 text-xs font-extrabold text-[oklch(30%_0.08_260)] ring-1 ring-[oklch(86%_0.05_250)]">
+                <span className="rounded-full bg-[oklch(94%_0.04_245)] px-3 py-1 text-xs font-semibold text-[oklch(30%_0.08_260)] ring-1 ring-[oklch(86%_0.05_250)]">
                   {gitCommits.length} commit{gitCommits.length === 1 ? "" : "s"}
                 </span>
               )}
@@ -911,11 +906,11 @@ export default function ProjectDetailPage() {
                       <div className="rounded-lg border border-[oklch(88%_0.035_255)] bg-[oklch(99%_0.006_245)] px-3 py-3 shadow-sm">
                         <div className="flex flex-wrap items-start gap-2">
                           {index === 0 && (
-                            <span className="rounded-md bg-[oklch(90%_0.08_145)] px-2 py-0.5 text-[10px] font-extrabold text-[oklch(37%_0.13_150)]">
+                            <span className="rounded-md bg-[oklch(90%_0.08_145)] px-2 py-0.5 text-[10px] font-semibold text-[oklch(37%_0.13_150)]">
                               Latest
                             </span>
                           )}
-                          <span className="min-w-0 flex-1 font-extrabold leading-5 text-[oklch(28%_0.07_260)]">
+                          <span className="min-w-0 flex-1 font-semibold leading-5 text-[oklch(28%_0.07_260)]">
                             {commit.subject}
                           </span>
                         </div>

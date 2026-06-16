@@ -93,6 +93,9 @@ Example:
 
 ```env
 HOST_PROJECTS_PATH=/path/to/your/projects
+PROJECT_DATA_PATH=./app/data
+DEPENDENCY_REPORT_RUN_ENABLED=true
+DEPENDENCY_REPORT_COMMAND=python3 /app/tools/dependency-reporter/dependency_reporter.py --config "<generated from projects.json>"
 ```
 
 Start the container:
@@ -106,6 +109,28 @@ Open [http://localhost:3080](http://localhost:3080).
 > [!IMPORTANT]
 > Docker cannot open macOS Finder directly. In Docker, use **Copy path** or configure path mapping with `HOST_PROJECTS_PATH` and `CONTAINER_PROJECTS_ROOT`.
 
+### Dependency Reports in Docker
+
+The dependency updates UI is report-only. In Docker, the **Run report** button generates a temporary reporter config from `projects.json`, runs the bundled reporter script, and writes JSON to `/app-data/dependency-reports`. It does not run package upgrades.
+
+Python projects use a Docker-safe fallback when a macOS `.venv` cannot run in the Linux container:
+
+- If a local venv is runnable, the reporter uses `pip list --outdated` or `uv pip list`.
+- If the venv is not runnable, the reporter reads `uv.lock` and compares locked direct dependencies against PyPI.
+- If no usable venv or lockfile is available, the report shows a warning for that project.
+
+Inside Docker:
+
+- The dependency reporter is bundled with the app at `/app/tools/dependency-reporter`
+- Report JSON is written to `/app-data/dependency-reports`
+- `PROJECT_DATA_PATH` is mounted at `/app-data`
+
+You can still generate a report from the host Mac if needed:
+
+```bash
+pnpm --dir /path/to/project-tracker-app report:dependencies
+```
+
 ## Data
 
 Project records are stored in:
@@ -113,6 +138,8 @@ Project records are stored in:
 ```text
 app/data/projects.json
 ```
+
+In Docker, `PROJECT_DATA_PATH` is mounted into the container at `/app-data`, and the app writes `projects.json` there. Keep this mounted to avoid resetting project records when the container is recreated.
 
 Each record can include:
 
@@ -135,6 +162,18 @@ pnpm check        # run Biome checks and formatting
 pnpm check:ci     # run Biome in CI mode
 pnpm lint         # run Biome checks
 ```
+
+## Releases
+
+Generated release notes are configured in `.github/release.yml`. GitHub groups merged pull requests by label, so label PRs before release with values such as `enhancement`, `bug`, `documentation`, `tooling`, or `ui`.
+
+```bash
+git tag -a v0.1.x -m "Release v0.1.x"
+git push origin main --follow-tags
+gh release create v0.1.x --generate-notes
+```
+
+Use `skip-changelog` on a PR to keep it out of generated notes.
 
 ## Troubleshooting
 

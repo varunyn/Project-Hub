@@ -10,7 +10,8 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "check": "biome check --write .",
-    "check:ci": "biome ci"
+    "check:ci": "biome ci",
+    "report:dependencies": "node scripts/run-dependency-reporter.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.16",
