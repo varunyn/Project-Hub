@@ -26,7 +26,7 @@ interface GitCommit {
 }
 
 async function fetcherGitLog(url: string): Promise<GitCommit[]> {
-  const res = await fetch(url);
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) return [];
   const data = (await res.json()) as { commits?: GitCommit[] };
   return data.commits ?? [];
@@ -53,10 +53,15 @@ export default function ProjectDetailPage() {
   const isEditingProject = searchParams.get("edit") === "1";
 
   const gitLogKey = id ? `/api/projects/${id}/git-log` : null;
-  const { data: gitCommits, isLoading: gitCommitsLoading } = useSWR<GitCommit[]>(
-    gitLogKey,
-    fetcherGitLog
-  );
+  const {
+    data: gitCommits,
+    isLoading: gitCommitsLoading,
+    isValidating: gitCommitsValidating,
+    mutate: refreshGitCommits,
+  } = useSWR<GitCommit[]>(gitLogKey, fetcherGitLog, {
+    dedupingInterval: 0,
+    revalidateOnMount: true,
+  });
 
   useEffect(() => {
     if (id) pushRecentProjectId(id);
@@ -117,6 +122,10 @@ export default function ProjectDetailPage() {
     setCopyPathFeedback(true);
     setTimeout(() => setCopyPathFeedback(false), duration);
   }, []);
+
+  const handleRefreshGitCommits = useCallback(() => {
+    refreshGitCommits();
+  }, [refreshGitCommits]);
 
   const handleShowInFinder = useCallback(async () => {
     if (!project?.path) return;
@@ -870,11 +879,37 @@ export default function ProjectDetailPage() {
           <div className={cardClass}>
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className={`${sectionTitleClass} !mb-0`}>Recent activity</h2>
-              {gitCommits && gitCommits.length > 0 && (
-                <span className="rounded-full bg-[oklch(94%_0.04_245)] px-3 py-1 text-xs font-semibold text-[oklch(30%_0.08_260)] ring-1 ring-[oklch(86%_0.05_250)]">
-                  {gitCommits.length} commit{gitCommits.length === 1 ? "" : "s"}
-                </span>
-              )}
+              <div className="flex shrink-0 items-center gap-2">
+                {gitCommits && gitCommits.length > 0 && (
+                  <span className="rounded-full bg-[oklch(94%_0.04_245)] px-3 py-1 text-xs font-semibold text-[oklch(30%_0.08_260)] ring-1 ring-[oklch(86%_0.05_250)]">
+                    {gitCommits.length} commit{gitCommits.length === 1 ? "" : "s"}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleRefreshGitCommits}
+                  disabled={gitCommitsValidating}
+                  className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[oklch(84%_0.035_255)] bg-white px-3 text-xs font-semibold text-[oklch(34%_0.08_260)] shadow-sm transition hover:border-[oklch(72%_0.08_250)] hover:bg-[oklch(97%_0.02_250)] disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-label="Refresh git history"
+                  title="Refresh git history"
+                >
+                  <svg
+                    className={`size-3.5 ${gitCommitsValidating ? "animate-spin" : ""}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2.2}
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4m-4 4a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4"
+                    />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
             </div>
             {gitCommitsLoading ? (
               <div className="space-y-3">
