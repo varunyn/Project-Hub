@@ -6,6 +6,7 @@ import {
   createProject as apiCreateProject,
   deleteProject as apiDeleteProject,
   fetchProjects as apiFetchProjects,
+  rescanProjects as apiRescanProjects,
   scanProjects as apiScanProjects,
   updateProject as apiUpdateProject,
 } from "../lib/projectsApi";
@@ -104,6 +105,24 @@ export function useProjects() {
     }
   }, [mutate, projects.length]);
 
+  const rescanProjects = useCallback(async () => {
+    setMutationError(null);
+    setScanMessage(null);
+    setIsScanning(true);
+    try {
+      const updated = await apiRescanProjects();
+      mutate(updated, false);
+      setScanMessage("Rescan complete: refreshed detected metadata for tracked quests.");
+      return updated;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to rescan quests. Please try again.";
+      setMutationError(msg);
+      throw err;
+    } finally {
+      setIsScanning(false);
+    }
+  }, [mutate]);
+
   return {
     projects,
     loading: isLoading,
@@ -112,6 +131,7 @@ export function useProjects() {
     error: mutationError ?? error?.message ?? null,
     refetch: () => mutate(),
     scanProjects,
+    rescanProjects,
     addProject,
     updateProject,
     deleteProject: removeProject,

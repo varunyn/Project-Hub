@@ -50,3 +50,12 @@ export async function scanProjects(): Promise<Project[]> {
   const response = await fetch(`${BASE}/scan`, { method: "POST" });
   return handleResponse<Project[]>(response);
 }
+
+export async function rescanProjects(): Promise<Project[]> {
+  const response = await fetch(`${BASE}/scan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "refresh" }),
+  });
+  return handleResponse<Project[]>(response);
+}

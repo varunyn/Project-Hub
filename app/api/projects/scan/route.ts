@@ -1,118 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import type { Project } from "../../../types";
+import { getProjects, resolveProjectPathForServer, setProjects } from "../../../utils/projectUtils";
 import {
-  getProjects,
-  readProjectReadme,
-  resolveProjectPathForServer,
-  setProjects,
-} from "../../../utils/projectUtils";
-
-const MAX_DEPTH = 2;
-
-const PROJECT_MARKERS = [
-  ".git",
-  "package.json",
-  "pyproject.toml",
-  "requirements.txt",
-  "Cargo.toml",
-  "go.mod",
-  "pom.xml",
-  "Gemfile",
-];
-
-function normalizePath(filePath: string): string {
-  return path.normalize(path.resolve(/* turbopackIgnore: true */ filePath));
-}
-
-function hasProjectMarker(dirPath: string): boolean {
-  return PROJECT_MARKERS.some((marker) => fs.existsSync(path.join(dirPath, marker)));
-}
-
-function detectTechStack(dirPath: string): string[] {
-  const techStack = new Set<string>();
-
-  if (fs.existsSync(path.join(dirPath, "package.json"))) {
-    techStack.add("JavaScript");
-    try {
-      const packageJson = JSON.parse(
-        fs.readFileSync(path.join(dirPath, "package.json"), "utf8")
-      ) as {
-        dependencies?: Record<string, string>;
-        devDependencies?: Record<string, string>;
-      };
-      const deps = {
-        ...packageJson.dependencies,
-        ...packageJson.devDependencies,
-      };
-      if (deps.react) techStack.add("React");
-      if (deps.next) techStack.add("Next.js");
-      if (deps.typescript || fs.existsSync(path.join(dirPath, "tsconfig.json"))) {
-        techStack.add("TypeScript");
-      }
-    } catch (error) {
-      console.warn("Failed to parse package.json during scan:", error);
-    }
-  }
-
-  if (
-    fs.existsSync(path.join(dirPath, "pyproject.toml")) ||
-    fs.existsSync(path.join(dirPath, "requirements.txt"))
-  ) {
-    techStack.add("Python");
-  }
-  if (fs.existsSync(path.join(dirPath, "Cargo.toml"))) techStack.add("Rust");
-  if (fs.existsSync(path.join(dirPath, "go.mod"))) techStack.add("Go");
-  if (fs.existsSync(path.join(dirPath, "pom.xml"))) techStack.add("Java");
-  if (fs.existsSync(path.join(dirPath, "Gemfile"))) techStack.add("Ruby");
-
-  return Array.from(techStack);
-}
-
-function listDirectories(rootPath: string): string[] {
-  if (!fs.existsSync(rootPath)) return [];
-  try {
-    return fs
-      .readdirSync(rootPath, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => path.join(rootPath, entry.name));
-  } catch (error) {
-    console.warn("Failed to read root directory during scan:", rootPath, error);
-    return [];
-  }
-}
-
-function discoverProjectDirectories(rootPath: string): string[] {
-  const discovered: string[] = [];
-  const queue: Array<{ dirPath: string; depth: number }> = [{ dirPath: rootPath, depth: 0 }];
-  const visited = new Set<string>();
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) continue;
-
-    const normalized = normalizePath(current.dirPath);
-    if (visited.has(normalized)) continue;
-    visited.add(normalized);
-
-    if (hasProjectMarker(normalized)) {
-      discovered.push(normalized);
-      continue;
-    }
-
-    if (current.depth >= MAX_DEPTH) continue;
-
-    const childDirs = listDirectories(normalized);
-    for (const child of childDirs) {
-      const baseName = path.basename(child);
-      if (baseName.startsWith(".")) continue;
-      queue.push({ dirPath: child, depth: current.depth + 1 });
-    }
-  }
-
-  return discovered;
-}
+  discoverProjectDirectories,
+  mergeScannedProjects,
+  normalizePath,
+  type ScanMode,
+} from "./scanCore";
 
 function resolveScanRoots(): string[] {
   const roots = [
@@ -139,10 +34,21 @@ function resolveProjectPathForStorage(projectPath: string): string {
   return projectPath;
 }
 
-export async function POST() {
+async function readScanMode(request: Request): Promise<ScanMode> {
   try {
+    const body = (await request.json()) as { mode?: string };
+    return body.mode === "refresh" ? "refresh" : "discover";
+  } catch {
+    return "discover";
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const mode = await readScanMode(request);
     const scanRoots = resolveScanRoots();
     console.info("[scan-projects] Starting scan", {
+      mode,
       configuredRoots: scanRoots,
       containerRoot: process.env.CONTAINER_PROJECTS_ROOT ?? null,
       hostRoot: process.env.HOST_PROJECTS_ROOT ?? process.env.HOST_PROJECTS_PATH ?? null,
@@ -158,9 +64,6 @@ export async function POST() {
     }
 
     const existingProjects = getProjects();
-    const existingPaths = new Set(
-      existingProjects.map((project) => normalizePath(resolveProjectPathForServer(project.path)))
-    );
     const discoveredPaths = new Set<string>();
 
     let accessibleRootCount = 0;
@@ -187,29 +90,22 @@ export async function POST() {
     }
 
     const today = new Date().toISOString().split("T")[0];
-    const newProjects: Project[] = [];
-    for (const projectPath of discoveredPaths) {
-      if (existingPaths.has(projectPath)) continue;
+    const result = mergeScannedProjects({
+      existingProjects,
+      discoveredPaths: Array.from(discoveredPaths),
+      today,
+      mode,
+      resolveExistingProjectPath: (project) => resolveProjectPathForServer(project.path),
+      resolveProjectPathForStorage,
+      createProjectId: (index) => `${Date.now()}-${index}`,
+    });
 
-      const projectName = path.basename(projectPath);
-      const readmePreview = readProjectReadme(projectPath).slice(0, 280);
-      newProjects.push({
-        id: `${Date.now()}-${newProjects.length}`,
-        name: projectName,
-        path: resolveProjectPathForStorage(projectPath),
-        techStack: detectTechStack(projectPath),
-        dateCreated: today,
-        lastUpdated: today,
-        readmePreview,
-        status: "in progress",
-        url: "",
-      });
-    }
-
-    const updatedProjects = await setProjects([...existingProjects, ...newProjects]);
+    const updatedProjects = await setProjects(result.projects);
     console.info("[scan-projects] Scan completed", {
+      mode,
       discovered: discoveredPaths.size,
-      added: newProjects.length,
+      added: result.addedCount,
+      refreshed: result.refreshedCount,
       total: updatedProjects.length,
     });
     return NextResponse.json(updatedProjects);

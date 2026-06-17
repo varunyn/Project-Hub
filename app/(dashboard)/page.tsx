@@ -98,6 +98,7 @@ function HomeContent() {
     deleteProject,
     clearError,
     scanProjects,
+    rescanProjects,
   } = useProjects();
 
   const {
@@ -270,6 +271,10 @@ function HomeContent() {
     await scanProjects();
   }, [scanProjects]);
 
+  const handleRescanProjects = useCallback(async () => {
+    await rescanProjects();
+  }, [rescanProjects]);
+
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-6 rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm ring-1 ring-slate-950/[0.03] sm:px-6">
@@ -297,6 +302,14 @@ function HomeContent() {
                   className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {scanning ? "Scanning" : "Scan quests"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRescanProjects}
+                  disabled={scanning || projects.length === 0}
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {scanning ? "Scanning" : "Rescan existing"}
                 </button>
                 <button
                   type="button"
