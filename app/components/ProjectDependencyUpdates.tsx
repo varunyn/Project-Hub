@@ -533,7 +533,7 @@ export default function ProjectDependencyUpdates({ projectPath }: { projectPath:
     setRunMessage(null);
     setRunError(null);
     try {
-      const response = await runReport();
+      const response = await runReport(projectPath);
       setRunMessage(
         response.result.ok
           ? "Dependency report generated."

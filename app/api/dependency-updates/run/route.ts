@@ -4,10 +4,12 @@ import { runDependencyReporter } from "../../../lib/dependencyReportRunner";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    const result = await runDependencyReporter();
-    const report = await readLatestDependencyReport();
+    const body = (await request.json().catch(() => ({}))) as { projectPath?: unknown };
+    const projectPath = typeof body.projectPath === "string" ? body.projectPath : undefined;
+    const result = await runDependencyReporter(projectPath);
+    const report = await readLatestDependencyReport(result.outputDir);
     return NextResponse.json({ result, report });
   } catch (error) {
     console.error("Failed to run dependency reporter:", error);

@@ -16,11 +16,15 @@ export async function fetchDependencyUpdates(): Promise<DependencyUpdatesReport>
   return handleResponse<DependencyUpdatesReport>(response);
 }
 
-export async function runDependencyReport(): Promise<{
+export async function runDependencyReport(projectPath?: string): Promise<{
   result: DependencyReportRunResult;
   report: DependencyUpdatesReport;
 }> {
-  const response = await fetch(`${DEPENDENCY_UPDATES_BASE}/run`, { method: "POST" });
+  const response = await fetch(`${DEPENDENCY_UPDATES_BASE}/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(projectPath ? { projectPath } : {}),
+  });
   return handleResponse<{ result: DependencyReportRunResult; report: DependencyUpdatesReport }>(
     response
   );

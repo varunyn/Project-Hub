@@ -1,6 +1,7 @@
 import "server-only";
 
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -23,6 +24,7 @@ export interface DependencyReportRunResult {
   stdout: string;
   stderr: string;
   command: string;
+  outputDir: string;
 }
 
 function isRunEnabled(): boolean {
@@ -57,7 +59,7 @@ function yamlList(values: string[]): string {
   return values.map((value) => `  - ${value}`).join("\n");
 }
 
-function buildReporterConfig(scanRoots: string[]): string {
+function buildReporterConfig(scanRoots: string[], outputDir: string): string {
   const releaseIntelligenceEnabled = boolEnv(
     "DEPENDENCY_REPORT_RELEASE_INTELLIGENCE_ENABLED",
     true
@@ -71,7 +73,7 @@ function buildReporterConfig(scanRoots: string[]): string {
   return [
     "scan_roots:",
     yamlList(scanRoots),
-    `output_dir: ${reportOutputDir()}`,
+    `output_dir: ${outputDir}`,
     "ignore_dirs:",
     yamlList([
       ".git",
@@ -96,9 +98,9 @@ function buildReporterConfig(scanRoots: string[]): string {
   ].join("\n");
 }
 
-async function writeTemporaryConfig(scanRoots: string[]): Promise<string> {
+async function writeTemporaryConfig(scanRoots: string[], outputDir: string): Promise<string> {
   const configPath = path.join(os.tmpdir(), `dependency-reporter-${Date.now()}.yaml`);
-  await fs.writeFile(configPath, buildReporterConfig(scanRoots), "utf8");
+  await fs.writeFile(configPath, buildReporterConfig(scanRoots, outputDir), "utf8");
   return configPath;
 }
 
@@ -110,7 +112,14 @@ function outputSnippet(value: string): string {
   return value.trim().slice(0, 4000);
 }
 
-export async function runDependencyReporter(): Promise<DependencyReportRunResult> {
+function scopedReportOutputDir(projectPath: string): string {
+  const projectHash = createHash("sha256").update(projectPath).digest("hex").slice(0, 16);
+  return path.join(reportOutputDir(), "projects", projectHash);
+}
+
+export async function runDependencyReporter(
+  projectPath?: string
+): Promise<DependencyReportRunResult> {
   if (!isRunEnabled()) {
     throw new Error(
       "Dependency report generation is disabled. Set DEPENDENCY_REPORT_RUN_ENABLED=true."
@@ -118,8 +127,18 @@ export async function runDependencyReporter(): Promise<DependencyReportRunResult
   }
 
   const projects = getProjects();
+  const requestedProject = projectPath
+    ? projects.find((project) => project.path === projectPath)
+    : undefined;
+  if (projectPath && !requestedProject) {
+    throw new Error("The requested project is not configured.");
+  }
   const scanRoots = Array.from(
-    new Set(projects.map((project) => resolveProjectPathForServer(project.path)).filter(Boolean))
+    new Set(
+      (requestedProject ? [requestedProject] : projects)
+        .map((project) => resolveProjectPathForServer(project.path))
+        .filter(Boolean)
+    )
   );
   if (scanRoots.length === 0) {
     throw new Error("No project paths are available for dependency report generation.");
@@ -127,8 +146,11 @@ export async function runDependencyReporter(): Promise<DependencyReportRunResult
 
   const scriptPath = reporterScript();
   await fs.access(scriptPath);
-  await fs.mkdir(reportOutputDir(), { recursive: true });
-  const configPath = await writeTemporaryConfig(scanRoots);
+  const outputDir = requestedProject
+    ? scopedReportOutputDir(requestedProject.path)
+    : reportOutputDir();
+  await fs.mkdir(outputDir, { recursive: true });
+  const configPath = await writeTemporaryConfig(scanRoots, outputDir);
 
   try {
     const result = await execFileAsync(reporterPython(), [scriptPath, "--config", configPath], {
@@ -141,6 +163,7 @@ export async function runDependencyReporter(): Promise<DependencyReportRunResult
       stdout: outputSnippet(result.stdout),
       stderr: outputSnippet(result.stderr),
       command: commandLabel(configPath),
+      outputDir,
     };
   } catch (error) {
     const details = error as Error & { stdout?: string; stderr?: string };
@@ -149,6 +172,7 @@ export async function runDependencyReporter(): Promise<DependencyReportRunResult
       stdout: outputSnippet(details.stdout ?? ""),
       stderr: outputSnippet(details.stderr || details.message),
       command: commandLabel(configPath),
+      outputDir,
     };
   } finally {
     await fs.unlink(configPath).catch(() => undefined);

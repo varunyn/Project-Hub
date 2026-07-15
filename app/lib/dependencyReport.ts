@@ -255,8 +255,8 @@ function calculateTotals(projects: DependencyProject[]): DependencyUpdatesReport
   );
 }
 
-async function latestReportFileName(): Promise<string | null> {
-  const entries = await fs.readdir(reportOutputDir(), { withFileTypes: true });
+async function latestReportFileName(outputDir: string): Promise<string | null> {
+  const entries = await fs.readdir(outputDir, { withFileTypes: true });
   return (
     entries
       .filter((entry) => entry.isFile() && REPORT_FILE_RE.test(entry.name))
@@ -265,10 +265,12 @@ async function latestReportFileName(): Promise<string | null> {
   );
 }
 
-export async function readLatestDependencyReport(): Promise<DependencyUpdatesReport> {
+export async function readLatestDependencyReport(
+  outputDir = reportOutputDir()
+): Promise<DependencyUpdatesReport> {
   let reportFileName: string | null = null;
   try {
-    reportFileName = await latestReportFileName();
+    reportFileName = await latestReportFileName(outputDir);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
       throw error;
@@ -289,7 +291,7 @@ export async function readLatestDependencyReport(): Promise<DependencyUpdatesRep
     };
   }
 
-  const reportPath = path.join(reportOutputDir(), reportFileName);
+  const reportPath = path.join(outputDir, reportFileName);
   const rawJson = await fs.readFile(reportPath, "utf8");
   const rawReport = JSON.parse(rawJson) as RawReport;
   const projects = Array.isArray(rawReport.projects)

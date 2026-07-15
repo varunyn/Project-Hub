@@ -17,8 +17,8 @@ export function useDependencyUpdates() {
     loading: isLoading,
     error: error instanceof Error ? error.message : null,
     refetch: () => mutate(),
-    runReport: async () => {
-      const response = await runDependencyReport();
+    runReport: async (projectPath?: string) => {
+      const response = await runDependencyReport(projectPath);
       await mutate(response.report, false);
       return response;
     },
