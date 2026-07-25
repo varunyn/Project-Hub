@@ -4,12 +4,53 @@ import html
 import json
 import os
 import re
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
 
 from .models import AIConfig, Config, DependencyUpdate, ProjectResult, ReleaseInfo
+
+
+MAX_RELEASE_NOTES_CHARS = 6000
+GITHUB_RELEASE_PAGES = 3
+DEFAULT_CACHE_TTL = timedelta(hours=24)
+DEFAULT_MAX_WORKERS = 4
+
+
+class TTLCache:
+    """Small thread-safe process-local cache used by release enrichment."""
+
+    def __init__(self, ttl: timedelta = DEFAULT_CACHE_TTL):
+        self.ttl = ttl
+        self._items: dict[str, tuple[datetime, object]] = {}
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> object | None:
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            item = self._items.get(key)
+            if item is None:
+                return None
+            expires_at, value = item
+            if expires_at <= now:
+                del self._items[key]
+                return None
+            return value
+
+    def put(self, key: str, value: object) -> None:
+        with self._lock:
+            self._items[key] = (datetime.now(timezone.utc) + self.ttl, value)
+
+
+class GitHubLookupError(Exception):
+    def __init__(self, reason: str, status: str):
+        super().__init__(reason)
+        self.reason = reason
+        self.status = status
 
 
 def fetch_release_info(update: DependencyUpdate, fetch_json=None) -> ReleaseInfo:
@@ -29,12 +70,18 @@ def fetch_json_url(url: str) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
-def fetch_release_text(url: str, max_chars: int = 6000) -> str:
+def fetch_release_text(url: str, max_chars: int = MAX_RELEASE_NOTES_CHARS) -> str:
     request = urllib.request.Request(url, headers={"Accept": "text/html,text/plain,application/json"})
     with urllib.request.urlopen(request, timeout=30) as response:
         raw = response.read().decode("utf-8", errors="replace")
-    text = _strip_markup(raw)
-    return text[:max_chars].strip()
+    return _sanitize_text(_strip_markup(raw), max_chars)
+
+
+def fetch_raw_text(url: str, max_chars: int = MAX_RELEASE_NOTES_CHARS) -> str:
+    request = urllib.request.Request(url, headers={"Accept": "text/plain"})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        raw = response.read().decode("utf-8", errors="replace")
+    return _sanitize_text(raw, max_chars)
 
 
 def _strip_markup(raw: str) -> str:
@@ -44,14 +91,24 @@ def _strip_markup(raw: str) -> str:
     return re.sub(r"\s+", " ", decoded).strip()
 
 
+def _sanitize_text(raw: str, max_chars: int = MAX_RELEASE_NOTES_CHARS) -> str:
+    raw = re.sub(r"<(script|style).*?</\1>", " ", raw, flags=re.IGNORECASE | re.DOTALL)
+    raw = re.sub(r"<[^>]+>", " ", raw)
+    raw = html.unescape(raw)
+    raw = "".join(char for char in raw if char in "\n\t" or ord(char) >= 0x20)
+    raw = raw.strip()
+    return raw[:max_chars].rstrip()
+
+
 def parse_pypi_release_metadata(update: DependencyUpdate, metadata: dict) -> ReleaseInfo:
     info = metadata.get("info", {})
     project_urls = info.get("project_urls", {}) if isinstance(info.get("project_urls", {}), dict) else {}
+    repository_url = _pick_project_url(project_urls, ("source", "repository", "code"))
     return ReleaseInfo(
         current_release_date=_first_pypi_release_date(metadata, update.current),
         latest_release_date=_first_pypi_release_date(metadata, update.latest),
         homepage_url=str(info.get("home_page") or project_urls.get("Homepage") or ""),
-        repository_url=_pick_project_url(project_urls, ("source", "repository", "code")),
+        repository_url=repository_url,
         changelog_url=_pick_project_url(project_urls, ("changelog", "release", "history", "news")),
     )
 
@@ -79,30 +136,246 @@ def enrich_results_with_release_intelligence(
     metadata_fetcher=fetch_release_info,
     release_text_fetcher=fetch_release_text,
     ai_summarizer=None,
+    cache: TTLCache | None = None,
 ) -> None:
     if not config.release_intelligence.enabled:
         return
     ai_summarizer = ai_summarizer or summarize_update_with_ai
-    enriched_count = 0
-    for result in results:
-        for update in result.updates:
-            if enriched_count >= config.release_intelligence.max_packages:
-                return
+    cache = cache or TTLCache()
+    updates = [
+        update
+        for result in results
+        for update in result.updates[: config.release_intelligence.max_packages]
+    ]
+    # Keep the configured package cap global, matching the previous behavior.
+    updates = updates[: config.release_intelligence.max_packages]
+
+    def enrich(update: DependencyUpdate) -> None:
+        try:
+            metadata_key = (
+                f"metadata:{update.ecosystem}:{update.package}:"
+                f"{update.current}:{update.wanted}:{update.latest}"
+            )
+            release_info = cache.get(metadata_key)
+            if not isinstance(release_info, ReleaseInfo):
+                release_info = metadata_fetcher(update)
+                cache.put(metadata_key, release_info)
+            update.release_info = release_info
+            _resolve_changelog(update, release_info, release_text_fetcher, cache)
+        except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError, ValueError) as exc:
+            update.release_info = ReleaseInfo(source="none", source_status="error", source_reason=str(exc))
+        if config.ai.enabled and update.release_info is not None:
             try:
-                update.release_info = metadata_fetcher(update)
+                _apply_ai_summary(update.release_info, ai_summarizer(update, update.release_info, config.ai))
             except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError, ValueError) as exc:
-                update.release_info = ReleaseInfo(ai_summary=f"Release metadata unavailable: {exc}")
-            if update.release_info.changelog_url:
-                try:
-                    update.release_info.release_notes_excerpt = release_text_fetcher(update.release_info.changelog_url)
-                except (OSError, urllib.error.URLError, UnicodeError, ValueError) as exc:
-                    update.release_info.release_notes_excerpt = f"Release notes unavailable: {exc}"
-            if config.ai.enabled:
-                try:
-                    _apply_ai_summary(update.release_info, ai_summarizer(update, update.release_info, config.ai))
-                except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError, ValueError) as exc:
-                    update.release_info.ai_summary = f"AI summary unavailable: {exc}"
-            enriched_count += 1
+                update.release_info.ai_summary = f"AI summary unavailable: {exc}"
+
+    with ThreadPoolExecutor(max_workers=DEFAULT_MAX_WORKERS) as executor:
+        futures = [executor.submit(enrich, update) for update in updates]
+        for future in futures:
+            future.result()
+
+
+def _resolve_changelog(
+    update: DependencyUpdate,
+    release_info: ReleaseInfo,
+    release_text_fetcher,
+    cache: TTLCache,
+) -> None:
+    github_repo = github_repository(release_info.repository_url)
+    github_reason = ""
+    if github_repo:
+        try:
+            releases = _github_releases(github_repo, cache)
+            selected, complete = select_releases(releases, update.current, update.latest)
+            if selected:
+                target = selected[-1]
+                release_info.source = "github_release"
+                release_info.source_status = "success"
+                release_info.release_url = str(target.get("html_url", ""))
+                release_info.matched_versions = [str(item.get("tag_name", "")) for item in selected]
+                release_info.is_range_complete = complete
+                release_info.release_notes_excerpt = _sanitize_text(
+                    _render_release_notes(selected), MAX_RELEASE_NOTES_CHARS
+                )
+                return
+            github_reason = "No matching stable GitHub release found"
+        except GitHubLookupError as exc:
+            github_reason = exc.reason
+
+        for tag in _tag_candidates(update.latest):
+            raw_url = f"https://raw.githubusercontent.com/{github_repo}/{urllib.parse.quote(tag)}/CHANGELOG.md"
+            try:
+                text = _cached_text(raw_url, fetch_raw_text, cache)
+            except (OSError, urllib.error.URLError, UnicodeError, ValueError):
+                continue
+            if text:
+                release_info.source = "github_raw"
+                release_info.source_status = "fallback"
+                release_info.source_reason = github_reason
+                release_info.changelog_url = raw_url
+                release_info.release_url = f"https://github.com/{github_repo}/releases"
+                release_info.matched_versions = [tag]
+                release_info.is_range_complete = False
+                release_info.release_notes_excerpt = text
+                return
+
+    if release_info.changelog_url:
+        try:
+            text = _cached_text(release_info.changelog_url, release_text_fetcher, cache)
+        except (OSError, urllib.error.URLError, UnicodeError, ValueError) as exc:
+            release_info.source_reason = str(exc)
+        else:
+            release_info.source = "package_metadata"
+            release_info.source_status = "success" if text else "link_only"
+            release_info.source_reason = github_reason
+            release_info.release_notes_excerpt = text
+            return
+
+    if release_info.repository_url or release_info.homepage_url:
+        release_info.source = "none"
+        release_info.source_status = "link_only"
+        release_info.source_reason = github_reason or "No release notes were available"
+    else:
+        release_info.source = "none"
+        release_info.source_status = "unavailable"
+        release_info.source_reason = github_reason or "No changelog source was discovered"
+
+
+def _cached_text(url: str, fetcher, cache: TTLCache) -> str:
+    key = f"text:{url}"
+    cached = cache.get(key)
+    if isinstance(cached, str):
+        return cached
+    text = fetcher(url)
+    cache.put(key, text)
+    return text
+
+
+def _github_releases(repo: str, cache: TTLCache) -> list[dict]:
+    key = f"github-releases:{repo}"
+    cached = cache.get(key)
+    if isinstance(cached, list):
+        return cached
+    releases: list[dict] = []
+    for page in range(1, GITHUB_RELEASE_PAGES + 1):
+        url = f"https://api.github.com/repos/{repo}/releases?per_page=100&page={page}"
+        request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                raise GitHubLookupError("GitHub repository or releases not found", "not_found") from exc
+            if exc.code in (403, 429):
+                raise GitHubLookupError("GitHub API rate limited or forbidden", "rate_limited") from exc
+            raise GitHubLookupError(f"GitHub releases request failed with HTTP {exc.code}", "error") from exc
+        except (OSError, json.JSONDecodeError) as exc:
+            raise GitHubLookupError(f"GitHub releases request failed: {exc}", "error") from exc
+        if not isinstance(payload, list):
+            raise GitHubLookupError("GitHub releases response was not a list", "malformed")
+        releases.extend(item for item in payload if isinstance(item, dict))
+        if len(payload) < 100:
+            break
+    cache.put(key, releases)
+    return releases
+
+
+def github_repository(url: str) -> str:
+    raw = (url or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith("git@github.com:"):
+        path = raw.split(":", 1)[1]
+    else:
+        normalized = raw.replace("git+", "", 1)
+        if normalized.startswith("git://"):
+            normalized = "https://" + normalized[len("git://") :]
+        if not normalized.startswith(("http://", "https://")):
+            return ""
+        parsed = urllib.parse.urlparse(normalized)
+        if parsed.netloc.lower() != "github.com":
+            return ""
+        path = parsed.path.lstrip("/")
+    parts = [part for part in path.split("/") if part]
+    if len(parts) < 2:
+        return ""
+    if parts[2:3] and parts[2] in {"tree", "releases", "issues", "pulls", "commits"}:
+        parts = parts[:2]
+    owner, repo = parts[:2]
+    repo = repo.removesuffix(".git")
+    if not owner or not repo:
+        return ""
+    return f"{owner}/{repo}"
+
+
+def _tag_candidates(version: str) -> list[str]:
+    clean = re.sub(r"^(?:release-)?v", "", (version or "").strip(), flags=re.IGNORECASE)
+    if not clean:
+        return []
+    return [clean, f"v{clean}", f"release-{clean}"]
+
+
+def _parse_version(value: str) -> tuple[int, int, int] | None:
+    match = re.search(r"(?<!\d)(\d+)(?:\.(\d+))?(?:\.(\d+))?", value or "")
+    if not match:
+        return None
+    return tuple(int(group or 0) for group in match.groups())  # type: ignore[return-value]
+
+
+def _version_precision(value: str) -> int:
+    match = re.search(r"(?<!\d)(\d+)(?:\.(\d+))?(?:\.(\d+))?", value or "")
+    if not match:
+        return 0
+    return 1 + sum(group is not None for group in match.groups()[1:])
+
+
+def _is_prerelease(tag: str) -> bool:
+    return bool(re.search(r"(?:-|_|\+)(?:alpha|beta|rc|pre|preview|dev)(?:\d|\b)", tag, re.IGNORECASE))
+
+
+def select_releases(releases: list[dict], current: str, latest: str) -> tuple[list[dict], bool]:
+    latest_core = _parse_version(latest)
+    if latest_core is None:
+        return [], False
+    exact = {candidate.lower() for candidate in _tag_candidates(latest)}
+    stable: list[tuple[tuple[int, int, int], dict]] = []
+    latest_precision = _version_precision(latest)
+
+    def within_latest(core: tuple[int, int, int]) -> bool:
+        if latest_precision < 3:
+            return core[:latest_precision] == latest_core[:latest_precision]
+        return core <= latest_core
+
+    for release in releases:
+        tag = str(release.get("tag_name", ""))
+        core = _parse_version(tag)
+        if core is None or _is_prerelease(tag):
+            continue
+        if not within_latest(core):
+            continue
+        stable.append((core, release))
+    current_core = _parse_version(current)
+    if current_core is None:
+        stable = [item for item in stable if str(item[1].get("tag_name", "")).lower() in exact]
+        if not stable:
+            stable = [item for item in stable if item[0] == latest_core]
+    else:
+        stable = [item for item in stable if current_core < item[0] and within_latest(item[0])]
+    stable.sort(key=lambda item: item[0])
+    if not stable:
+        return [], False
+    return [release for _, release in stable], current_core is not None
+
+
+def _render_release_notes(releases: list[dict]) -> str:
+    chunks: list[str] = []
+    for release in releases:
+        tag = str(release.get("tag_name", "")).strip()
+        body = str(release.get("body", "")).strip()
+        if body:
+            chunks.append(f"## {tag}\n\n{body}")
+    return "\n\n".join(chunks)
 
 
 def _apply_ai_summary(release_info: ReleaseInfo, raw_summary: str) -> None:
@@ -161,7 +434,7 @@ def _extract_json_object(text: str) -> str:
         if escaped:
             escaped = False
             continue
-        if char == "\\" and in_string:
+        if char == "\\\\" and in_string:
             escaped = True
             continue
         if char == '"':
@@ -222,19 +495,13 @@ def summarize_update_with_ai(update: DependencyUpdate, release_info: ReleaseInfo
         headers["Authorization"] = f"Bearer {api_key}"
     elif local_endpoint:
         headers["Authorization"] = "Bearer ollama"
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers=headers,
-        method="POST",
-    )
+    request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
     with urllib.request.urlopen(request, timeout=60) as response:
         data = json.loads(response.read().decode("utf-8"))
     choices = data.get("choices", [])
     if not choices:
         return ""
-    message = choices[0].get("message", {})
-    return str(message.get("content", "")).strip()
+    return str(choices[0].get("message", {}).get("content", "")).strip()
 
 
 def _first_pypi_release_date(metadata: dict, version: str) -> str:
@@ -254,7 +521,11 @@ def _pick_project_url(project_urls: dict, keywords: tuple[str, ...]) -> str:
 
 
 def _clean_repository_url(url: str) -> str:
-    cleaned = url.removeprefix("git+")
+    cleaned = url.strip().removeprefix("git+")
+    if cleaned.startswith("git://"):
+        cleaned = "https://" + cleaned[len("git://") :]
+    if cleaned.startswith("git@github.com:"):
+        cleaned = "https://github.com/" + cleaned.split(":", 1)[1]
     if cleaned.endswith(".git"):
         cleaned = cleaned[:-4]
     return cleaned
@@ -265,6 +536,4 @@ def _infer_changelog_url(metadata: dict, repository_url: str) -> str:
         value = metadata.get(key)
         if isinstance(value, str):
             return value
-    if "github.com" in repository_url:
-        return repository_url.rstrip("/") + "/releases"
     return ""

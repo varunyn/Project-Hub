@@ -117,6 +117,8 @@ The UI remains at [http://localhost:3080](http://localhost:3080), and MCP is exp
 > [!IMPORTANT]
 > Docker cannot open macOS Finder directly. In Docker, use **Copy path** or configure path mapping with `HOST_PROJECTS_PATH` and `CONTAINER_PROJECTS_ROOT`.
 
+`HOST_PROJECTS_PATH` must be a common parent directory containing every project path saved in `projects.json`. For example, if a project is stored at `/Users/you/Documents/OpenSourceApps/my-project`, set `HOST_PROJECTS_PATH=/Users/you/Documents/OpenSourceApps`, not the `Project-Hub` directory. After changing this value, recreate the app container with `docker compose up -d --force-recreate app`.
+
 ### Dependency Reports in Docker
 
 The dependency updates UI is report-only. In Docker, the **Run report** button generates a temporary reporter config from `projects.json`, runs the bundled reporter script, and writes JSON to `/app-data/dependency-reports`. It does not run package upgrades.

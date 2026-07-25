@@ -9,7 +9,7 @@ Report-only dependency update scanner for local Python and React/Node projects.
 - Detects Python projects with `requirements.txt`, `pyproject.toml`, or `Pipfile`.
 - Runs read-only checks for available newer versions.
 - Optionally fetches release metadata from PyPI and npm.
-- Optionally fetches changelog or release-note text for update planning.
+- Optionally resolves version-aware changelog and release-note text for update planning.
 - Optionally adds structured AI upgrade recommendations with an OpenAI-compatible chat API.
 - Writes dated Markdown and JSON reports.
 
@@ -79,7 +79,16 @@ python3 dependency_reporter.py --config config.project-tracker.yaml
 
 ## Release Intelligence
 
-Release intelligence is optional and disabled by default. When enabled, the reporter fetches release metadata for outdated direct dependencies from PyPI and npm, fetches available changelog or release-note text, then adds an `Upgrade Planning` section to the Markdown report and `release_info` fields to the JSON report.
+Release intelligence is optional for standalone reporter runs and disabled by default. When enabled, the reporter fetches release metadata for outdated direct dependencies from PyPI and npm, then resolves release notes using this order:
+
+1. GitHub Releases API, when package metadata identifies a GitHub repository.
+2. A raw `CHANGELOG.md` at likely target-version tags.
+3. An explicit changelog or history URL from npm/PyPI metadata.
+4. The repository or homepage as a link-only fallback.
+
+GitHub release matching supports plain, `v`-prefixed, and `release-`-prefixed tags. Stable releases across the `(current, latest]` range are aggregated and ordered by version. Prereleases are excluded from range summaries. GitHub API failures, including rate limits, are recorded as source diagnostics and do not prevent fallback resolution.
+
+Release lookups use a process-local, thread-safe cache with a 24-hour TTL and up to four concurrent package enrichments. The cache is discarded when the reporter process exits. GitHub requests are anonymous in v1; a live GitHub token is not required.
 
 ```yaml
 release_intelligence:
@@ -87,7 +96,37 @@ release_intelligence:
   max_packages: 25
 ```
 
-The deterministic metadata includes release dates, available homepage, repository, and changelog links, and a bounded release-note excerpt when a changelog URL is available. Upgrade planning rows include the project path so repeated packages across projects are easy to distinguish.
+The deterministic metadata includes release dates, available homepage, repository, and changelog links, plus a bounded release-note excerpt. JSON `release_info` objects also include:
+
+- `source`: `github_release`, `github_raw`, or `none`
+- `source_status`: `success`, `fallback`, `link_only`, `unavailable`, or `error`
+- `source_reason`: diagnostic text when resolution was incomplete
+- `release_url`: the matched GitHub release or releases page
+- `matched_versions`: release tags included in the excerpt
+- `is_range_complete`: whether the requested version range was resolved completely
+
+Upgrade planning rows include the project path so repeated packages across projects are easy to distinguish.
+
+The app-generated configuration enables release intelligence by default when dependency report execution is enabled. Set `DEPENDENCY_REPORT_RELEASE_INTELLIGENCE_ENABLED=false` to disable it for app-triggered runs.
+
+## Testing Release Intelligence
+
+The normal test suite is deterministic and does not make network requests:
+
+```bash
+PYTHONPATH=tools/dependency-reporter \
+python3 -m unittest discover -s tools/dependency-reporter/tests -p 'test_*.py'
+```
+
+An opt-in live smoke test calls the public GitHub Releases API for `yorah/dockbrr` and exercises real release matching:
+
+```bash
+RUN_LIVE_CHANGELOG_TESTS=1 \
+PYTHONPATH=tools/dependency-reporter \
+python3 -m unittest tools.dependency-reporter.tests.test_live_release_intelligence
+```
+
+The live test is excluded unless `RUN_LIVE_CHANGELOG_TESTS=1` is set, so ordinary CI and local test runs remain independent of network availability.
 
 ## Optional AI Summaries
 

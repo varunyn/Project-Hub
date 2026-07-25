@@ -26,6 +26,12 @@ class ReleaseInfo:
     ai_breaking_changes: list[str] = field(default_factory=list)
     ai_evidence_urls: list[str] = field(default_factory=list)
     ai_summary: str = ""
+    source: str = ""
+    source_status: str = ""
+    source_reason: str = ""
+    release_url: str = ""
+    matched_versions: list[str] = field(default_factory=list)
+    is_range_complete: bool | None = None
 
 
 @dataclass

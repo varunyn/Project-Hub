@@ -98,16 +98,22 @@ def _append_upgrade_planning(lines: list[str], results: list[ProjectResult]) -> 
         [
             "## Upgrade Planning",
             "",
-            "| Project | Package | Ecosystem | Current | Latest | Latest Release | Links |",
-            "|---|---|---|---:|---:|---|---|",
+            "| Project | Package | Ecosystem | Current | Latest | Latest Release | Source | Matched | Links |",
+            "|---|---|---|---:|---:|---|---|---|---|",
         ]
     )
     for project_path, update in sorted(updates_with_release_info, key=lambda item: (str(item[0]), item[1].ecosystem, item[1].package)):
         release_info = update.release_info or ReleaseInfo()
         links = _format_release_links(release_info)
+        source = release_info.source or "unknown"
+        if release_info.source_status:
+            source = f"{source} ({release_info.source_status})"
+        matched = ", ".join(release_info.matched_versions) or "-"
+        if release_info.source_reason:
+            matched = f"{matched} ({release_info.source_reason})"
         lines.append(
             f"| {project_path} | {update.package} | {update.ecosystem} | {update.current} | {update.latest} | "
-            f"{release_info.latest_release_date} | {links} |"
+            f"{release_info.latest_release_date} | {source} | {matched} | {links} |"
         )
     structured_notes = [
         (project_path, update)
@@ -175,6 +181,8 @@ def _format_release_links(release_info: ReleaseInfo) -> str:
         links.append(f"[Repository]({release_info.repository_url})")
     if release_info.changelog_url:
         links.append(f"[Changelog]({release_info.changelog_url})")
+    if release_info.release_url and release_info.release_url != release_info.changelog_url:
+        links.append(f"[Release]({release_info.release_url})")
     return ", ".join(links)
 
 

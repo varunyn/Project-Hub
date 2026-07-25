@@ -315,7 +315,7 @@ class ReleaseIntelligenceTests(unittest.TestCase):
                 current_release_date="2026-01-01T00:00:00Z",
                 latest_release_date="2026-02-01T00:00:00Z",
                 homepage_url="https://fastapi.tiangolo.com/",
-                repository_url="https://github.com/fastapi/fastapi",
+                repository_url="",
                 changelog_url="https://fastapi.tiangolo.com/release-notes/",
             )
 
@@ -329,6 +329,7 @@ class ReleaseIntelligenceTests(unittest.TestCase):
             [result],
             config,
             metadata_fetcher=metadata_fetcher,
+            release_text_fetcher=lambda url: "",
             ai_summarizer=ai_summarizer,
         )
 

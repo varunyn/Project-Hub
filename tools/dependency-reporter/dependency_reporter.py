@@ -34,6 +34,7 @@ from dependency_reporter_lib.python_deps import (
     collect_direct_python_dependencies,
 )
 from dependency_reporter_lib.release_intelligence import (
+    TTLCache,
     _apply_ai_summary,
     _clean_repository_url,
     _extract_json_object,
@@ -46,8 +47,10 @@ from dependency_reporter_lib.release_intelligence import (
     fetch_json_url,
     fetch_release_info,
     fetch_release_text,
+    github_repository,
     parse_npm_release_metadata,
     parse_pypi_release_metadata,
+    select_releases,
     summarize_update_with_ai,
 )
 from dependency_reporter_lib.reports import (
@@ -73,6 +76,7 @@ __all__ = [
     "ProjectResult",
     "ReleaseInfo",
     "ReleaseIntelligenceConfig",
+    "TTLCache",
     "check_project",
     "collect_direct_node_dependencies",
     "collect_direct_python_dependencies",
@@ -82,6 +86,7 @@ __all__ = [
     "fetch_json_url",
     "fetch_release_info",
     "fetch_release_text",
+    "github_repository",
     "load_config",
     "main",
     "parse_node_outdated",
@@ -90,6 +95,7 @@ __all__ = [
     "parse_pip_outdated",
     "parse_pypi_release_metadata",
     "run_command",
+    "select_releases",
     "summarize_update_with_ai",
     "write_reports",
 ]
@@ -97,3 +103,5 @@ __all__ = [
 
 if __name__ == "__main__":
     raise SystemExit(main())
+    github_repository,
+    select_releases,

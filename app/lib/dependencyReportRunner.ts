@@ -170,7 +170,10 @@ export async function runDependencyReporter(
     return {
       ok: false,
       stdout: outputSnippet(details.stdout ?? ""),
-      stderr: outputSnippet(details.stderr || details.message),
+      // The Python reporter prints its handled errors to stdout. Preserve that
+      // output so the UI shows the actual failure instead of only execFile's
+      // generic "Command failed" message.
+      stderr: outputSnippet(details.stderr || details.stdout || details.message),
       command: commandLabel(configPath),
       outputDir,
     };
