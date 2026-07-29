@@ -47,6 +47,15 @@ export function getProjectTasks(projectId: string): ProjectTask[] {
     );
 }
 
+export function getAllTasks(): ProjectTask[] {
+  return getTasks().sort(
+    (a, b) =>
+      TASK_STATUSES.indexOf(a.status) - TASK_STATUSES.indexOf(b.status) ||
+      a.position - b.position ||
+      a.updatedAt.localeCompare(b.updatedAt)
+  );
+}
+
 export async function createTask(task: ProjectTask): Promise<ProjectTask> {
   return queueTaskWrite(() => {
     const tasks = getTasks();

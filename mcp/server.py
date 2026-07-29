@@ -1,7 +1,7 @@
 """
 FastMCP server for the Project Hub app.
-Exposes tools so AI agents can query, add, and update projects.
-Uses the same app/data/projects.json file as the Next.js app.
+Exposes tools so AI agents can query, add, and update projects and tasks.
+Uses the same app/data/projects.json and app/data/tasks.json files as the Next.js app.
 """
 
 from __future__ import annotations
@@ -9,8 +9,10 @@ from __future__ import annotations
 import json
 import os
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from fastmcp import FastMCP
 
@@ -18,14 +20,17 @@ from fastmcp import FastMCP
 _BASE = Path(__file__).resolve().parent.parent
 _DATA_DIR = Path(os.environ.get("PROJECT_DATA_DIR") or _BASE / "app" / "data")
 PROJECTS_FILE = _DATA_DIR / "projects.json"
+TASKS_FILE = _DATA_DIR / "tasks.json"
 DEPENDENCY_REPORTS_DIR = Path(
     os.environ.get("DEPENDENCY_REPORT_OUTPUT_DIR") or _DATA_DIR / "dependency-reports"
 )
 _REPORT_FILE_RE = re.compile(r"^dependency-report-\d{4}-\d{2}-\d{2}\.json$")
+TASK_STATUSES = ("backlog", "todo", "in-progress", "review", "done")
+TASK_PRIORITIES = ("low", "medium", "high")
 
 mcp = FastMCP(
     "Project Hub",
-    instructions="Query, add, and update projects in the Project Hub app. Data is stored in app/data/projects.json.",
+    instructions="Query, add, and update projects and project tasks in Project Hub. Data is stored in app/data/projects.json and app/data/tasks.json.",
 )
 
 
@@ -40,6 +45,48 @@ def _save_projects(projects: list[dict[str, Any]]) -> None:
     PROJECTS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(PROJECTS_FILE, "w", encoding="utf-8") as f:
         json.dump(projects, f, indent=2)
+
+
+def _load_tasks() -> list[dict[str, Any]]:
+    if not TASKS_FILE.exists():
+        return []
+    with open(TASKS_FILE, encoding="utf-8") as f:
+        data = json.load(f)
+    return data if isinstance(data, list) else []
+
+
+def _save_tasks(tasks: list[dict[str, Any]]) -> None:
+    TASKS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(TASKS_FILE, "w", encoding="utf-8") as f:
+        json.dump(tasks, f, indent=2)
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _task_sort_key(task: dict[str, Any]) -> tuple[int, int, str]:
+    status_index = TASK_STATUSES.index(task.get("status")) if task.get("status") in TASK_STATUSES else len(TASK_STATUSES)
+    return (status_index, int(task.get("position") or 0), str(task.get("updatedAt") or ""))
+
+
+def _normalize_project_tasks(tasks: list[dict[str, Any]], project_id: str) -> list[dict[str, Any]]:
+    project_tasks = [task for task in tasks if str(task.get("projectId")) == str(project_id)]
+    normalized: list[dict[str, Any]] = []
+    for status in TASK_STATUSES:
+        column = sorted(
+            (task for task in project_tasks if task.get("status") == status),
+            key=lambda task: int(task.get("position") or 0),
+        )
+        normalized.extend([{**task, "position": position} for position, task in enumerate(column)])
+    return normalized
+
+
+def _save_normalized_project_tasks(tasks: list[dict[str, Any]], project_id: str) -> None:
+    _save_tasks(
+        [task for task in tasks if str(task.get("projectId")) != str(project_id)]
+        + _normalize_project_tasks(tasks, project_id)
+    )
 
 
 def _load_json_file(path: Path) -> dict[str, Any]:
@@ -226,6 +273,45 @@ def search_projects(
 
 
 @mcp.tool(
+    annotations={"title": "List Tasks", "readOnlyHint": True, "openWorldHint": False}
+)
+def list_tasks(
+    project_id: str | None = None,
+    status: str | None = None,
+    priority: str | None = None,
+    query: str | None = None,
+) -> list[dict[str, Any]]:
+    """List tasks across all projects, with optional project, status, priority, and text filters."""
+    tasks = sorted(_load_tasks(), key=_task_sort_key)
+    query_text = (query or "").lower()
+    return [
+        task
+        for task in tasks
+        if (project_id is None or str(task.get("projectId")) == str(project_id))
+        and (status is None or task.get("status") == status)
+        and (priority is None or task.get("priority") == priority)
+        and (
+            not query_text
+            or query_text in " ".join(
+                [
+                    str(task.get("title") or ""),
+                    str(task.get("description") or ""),
+                    " ".join(str(label) for label in task.get("labels") or []),
+                ]
+            ).lower()
+        )
+    ]
+
+
+@mcp.tool(
+    annotations={"title": "Get Task", "readOnlyHint": True, "openWorldHint": False}
+)
+def get_task(task_id: str) -> dict[str, Any] | None:
+    """Get one task by ID, including its project ID, status, priority, and metadata."""
+    return next((task for task in _load_tasks() if str(task.get("id")) == str(task_id)), None)
+
+
+@mcp.tool(
     annotations={
         "title": "Get Dependency Report",
         "readOnlyHint": True,
@@ -347,6 +433,18 @@ def projects_resource() -> list[dict[str, Any]]:
     return _load_projects()
 
 
+@mcp.resource("project-hub://tasks")
+def tasks_resource() -> list[dict[str, Any]]:
+    """Read-only snapshot of tasks across all projects."""
+    return list_tasks()
+
+
+@mcp.resource("project-hub://projects/{project_id}/tasks")
+def project_tasks_resource(project_id: str) -> list[dict[str, Any]]:
+    """Read-only snapshot of tasks belonging to one project."""
+    return list_tasks(project_id=project_id)
+
+
 @mcp.resource("project-hub://dependency-report/latest")
 def dependency_report_resource() -> dict[str, Any]:
     """Read-only snapshot of the latest dependency tracker report."""
@@ -377,6 +475,116 @@ def review_dependency_update_prompt(package_name: str, project_id_or_path: str |
 
 
 # --- Write tools ---
+
+
+def _validate_task_fields(status: str, priority: str) -> None:
+    if status not in TASK_STATUSES:
+        raise ValueError(f"status must be one of: {', '.join(TASK_STATUSES)}")
+    if priority not in TASK_PRIORITIES:
+        raise ValueError(f"priority must be one of: {', '.join(TASK_PRIORITIES)}")
+
+
+@mcp.tool()
+def create_task(
+    project_id: str,
+    title: str,
+    description: str = "",
+    status: str = "todo",
+    priority: str = "medium",
+    assignee_id: str = "",
+    labels: list[str] | None = None,
+    due_date: str = "",
+) -> dict[str, Any] | None:
+    """Create a task in an existing project. Returns the task, or None when the project is not found."""
+    if not any(str(project.get("id")) == str(project_id) for project in _load_projects()):
+        return None
+    if not title.strip():
+        raise ValueError("title is required")
+    _validate_task_fields(status, priority)
+    now = _now()
+    position = len([task for task in _load_tasks() if task.get("projectId") == project_id and task.get("status") == status])
+    task = {
+        "id": str(uuid4()),
+        "projectId": project_id,
+        "title": title.strip(),
+        "description": description,
+        "status": status,
+        "priority": priority,
+        "assigneeId": assignee_id,
+        "labels": labels or [],
+        "dueDate": due_date,
+        "position": position,
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    tasks = _load_tasks()
+    tasks.append(task)
+    _save_normalized_project_tasks(tasks, project_id)
+    return next(item for item in _load_tasks() if item["id"] == task["id"])
+
+
+@mcp.tool()
+def update_task(
+    task_id: str,
+    project_id: str | None = None,
+    title: str | None = None,
+    description: str | None = None,
+    status: str | None = None,
+    priority: str | None = None,
+    assignee_id: str | None = None,
+    labels: list[str] | None = None,
+    due_date: str | None = None,
+    position: int | None = None,
+) -> dict[str, Any] | None:
+    """Update a task by ID. If project_id is supplied, it must match the task's project."""
+    tasks = _load_tasks()
+    existing = next((task for task in tasks if str(task.get("id")) == str(task_id)), None)
+    if existing is None or (project_id is not None and str(existing.get("projectId")) != str(project_id)):
+        return None
+    next_status = status if status is not None else existing.get("status", "todo")
+    next_priority = priority if priority is not None else existing.get("priority", "medium")
+    _validate_task_fields(next_status, next_priority)
+    updated = dict(existing)
+    for key, value in {
+        "title": title.strip() if title is not None else None,
+        "description": description,
+        "status": status,
+        "priority": priority,
+        "assigneeId": assignee_id,
+        "labels": labels,
+        "dueDate": due_date,
+        "position": position,
+    }.items():
+        if value is not None:
+            updated[key] = value
+    if title is not None and not title.strip():
+        raise ValueError("title cannot be empty")
+    updated["updatedAt"] = _now()
+    tasks = [updated if str(task.get("id")) == str(task_id) else task for task in tasks]
+    if status is not None or position is not None:
+        project_tasks = [task for task in tasks if task.get("projectId") == existing.get("projectId") and task.get("id") != task_id]
+        column = sorted(
+            [task for task in project_tasks if task.get("status") == updated["status"]],
+            key=lambda task: int(task.get("position") or 0),
+        )
+        insert_at = max(0, min(int(position if position is not None else len(column)), len(column)))
+        column.insert(insert_at, updated)
+        for index, task in enumerate(column):
+            task["position"] = index
+    _save_normalized_project_tasks(tasks, str(existing["projectId"]))
+    return next(item for item in _load_tasks() if item["id"] == task_id)
+
+
+@mcp.tool(annotations={"destructiveHint": True})
+def delete_task(task_id: str) -> bool:
+    """Delete a task by ID and normalize the remaining project column positions."""
+    tasks = _load_tasks()
+    existing = next((task for task in tasks if str(task.get("id")) == str(task_id)), None)
+    if existing is None:
+        return False
+    remaining = [task for task in tasks if str(task.get("id")) != str(task_id)]
+    _save_normalized_project_tasks(remaining, str(existing["projectId"]))
+    return True
 
 
 @mcp.tool()

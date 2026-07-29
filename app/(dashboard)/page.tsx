@@ -293,6 +293,12 @@ function HomeContent() {
             </p>
           </div>
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Link
+              href="/tasks"
+              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2"
+            >
+              All tasks
+            </Link>
             {!showForm && (
               <>
                 <button

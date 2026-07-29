@@ -105,6 +105,17 @@ export default function Sidebar({ projects, sidebarId }: SidebarProps) {
             </svg>
             <span className="truncate">Dependency updates</span>
           </Link>
+          <Link
+            className={`mt-1 flex min-h-10 items-center gap-2 rounded-lg px-1 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500/70 ${
+              pathname === "/tasks" ? "text-white" : "text-slate-400 hover:text-slate-200"
+            }`}
+            href="/tasks"
+          >
+            <span className="flex size-4 items-center justify-center text-sm" aria-hidden>
+              ✓
+            </span>
+            <span className="truncate">All tasks</span>
+          </Link>
         </div>
         <div className="shrink-0 -me-2">
           <button

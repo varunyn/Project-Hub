@@ -1,6 +1,6 @@
 # Project Hub MCP Server
 
-FastMCP server so AI agents (Cursor, Claude, etc.) can **query**, **add**, and **update** projects in your Project Hub app. It reads and writes the same `app/data/projects.json` file as the Next.js app.
+FastMCP server so AI agents (Cursor, Claude, etc.) can **query**, **add**, and **update** projects and tasks in your Project Hub app. It reads and writes the same `app/data/projects.json` and `app/data/tasks.json` files as the Next.js app.
 
 ## Tools
 
@@ -9,6 +9,11 @@ FastMCP server so AI agents (Cursor, Claude, etc.) can **query**, **add**, and *
 | `list_projects`                           | List all projects                          |
 | `get_project(project_id)`                 | Get one project by ID                      |
 | `search_projects(query?, status?, tech?)` | Search by name/path, status, or tech stack |
+| `list_tasks(project_id?, status?, priority?, query?)` | List and filter tasks across projects |
+| `get_task(task_id)`                    | Get one task by ID                         |
+| `create_task(project_id, title, ...)`  | Create a task in a project                 |
+| `update_task(task_id, ...)`             | Update task fields or workflow position    |
+| `delete_task(task_id)`                  | Delete a task                              |
 | `add_project(name, path, ...)`            | Add a new project                          |
 | `update_project(project_id, ...)`         | Update an existing project                 |
 | `delete_project(project_id)`              | Delete a project                           |
@@ -23,6 +28,8 @@ Read-only tools include FastMCP annotations with display titles, `readOnlyHint`,
 | Resource URI | Description |
 | --- | --- |
 | `project-hub://projects` | Read-only snapshot of tracked projects |
+| `project-hub://tasks` | Read-only snapshot of tasks across projects |
+| `project-hub://projects/{project_id}/tasks` | Read-only tasks for one project |
 | `project-hub://dependency-report/latest` | Latest dependency tracker report |
 | `project-hub://projects/{project_id_or_path}/dependency-updates` | Dependency tracker details for one project |
 

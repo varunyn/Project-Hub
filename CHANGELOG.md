@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### Added
+
+- Added a global `/tasks` workspace with all-project Kanban and list views, project and priority filters, search, drag-and-drop status changes, and task details.
+- Added All tasks links to the dashboard header and sidebar navigation.
+- Added MCP task tools and read-only resources for querying, creating, updating, moving, and deleting project tasks.
+
 ## [0.1.3] - 2026-07-29
 
 ### Added

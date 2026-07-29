@@ -6,6 +6,12 @@ const responseData = async <T>(response: Response): Promise<T> => {
   return data as T;
 };
 
+export function fetchAllTasks(): Promise<ProjectTask[]> {
+  return fetch("/api/tasks", { cache: "no-store" }).then((response) =>
+    responseData<ProjectTask[]>(response)
+  );
+}
+
 export function fetchProjectTasks(projectId: string): Promise<ProjectTask[]> {
   return fetch(`/api/projects/${projectId}/tasks`, { cache: "no-store" }).then((response) =>
     responseData<ProjectTask[]>(response)
