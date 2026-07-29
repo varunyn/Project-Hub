@@ -23,3 +23,21 @@ export interface Project {
   startCommand?: string;
   docCount?: number;
 }
+
+export type TaskStatus = "backlog" | "todo" | "in-progress" | "review" | "done";
+export type TaskPriority = "low" | "medium" | "high";
+
+export interface ProjectTask {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assigneeId: string;
+  labels: string[];
+  dueDate: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}

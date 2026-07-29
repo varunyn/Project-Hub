@@ -12,35 +12,24 @@ import {
   ProjectDetailsCard,
   ProjectDetailTabs,
 } from "../../../components/ProjectDetailHeader";
+import { ProjectEditableSections } from "../../../components/ProjectEditableSections";
 import ProjectForm from "../../../components/ProjectForm";
 import { pushRecentProjectId } from "../../../components/Sidebar";
 import { useProject } from "../../../hooks/useProject";
 import { useProjects } from "../../../hooks/useProjects";
-import type { Project } from "../../../types";
+import {
+  createProjectTask,
+  deleteProjectTask,
+  fetchProjectTasks,
+  updateProjectTask,
+} from "../../../lib/tasksApi";
+import type { Project, ProjectTask, TaskPriority, TaskStatus } from "../../../types";
 import { formatCommitDate } from "../../../utils/format";
 
 interface GitCommit {
   hash: string;
   subject: string;
   date: string;
-}
-
-type TaskStatus = "backlog" | "todo" | "in-progress" | "review" | "done";
-type TaskPriority = "low" | "medium" | "high";
-
-interface ProjectTask {
-  id: string;
-  projectId: string;
-  title: string;
-  description: string;
-  status: TaskStatus;
-  priority: TaskPriority;
-  assigneeId: string;
-  labels: string[];
-  dueDate: string;
-  position: number;
-  createdAt: string;
-  updatedAt: string;
 }
 
 const TASK_COLUMNS: Array<{ id: TaskStatus; label: string; tone: string }> = [
@@ -51,77 +40,11 @@ const TASK_COLUMNS: Array<{ id: TaskStatus; label: string; tone: string }> = [
   { id: "done", label: "Done", tone: "bg-emerald-500" },
 ];
 
-const TASK_SEEDS: Omit<ProjectTask, "projectId">[] = [
-  {
-    id: "task-1",
-    title: "Define project milestones",
-    description: "Break the next release into shippable milestones.",
-    status: "in-progress",
-    priority: "high",
-    assigneeId: "You",
-    labels: ["planning"],
-    dueDate: "",
-    position: 0,
-    createdAt: "2026-07-20",
-    updatedAt: "2026-07-28",
-  },
-  {
-    id: "task-2",
-    title: "Review open issues",
-    description: "Triage the current issue queue and identify blockers.",
-    status: "todo",
-    priority: "medium",
-    assigneeId: "You",
-    labels: ["maintenance"],
-    dueDate: "",
-    position: 1,
-    createdAt: "2026-07-21",
-    updatedAt: "2026-07-27",
-  },
-  {
-    id: "task-3",
-    title: "Document the local setup",
-    description: "Capture the commands needed to run this project locally.",
-    status: "backlog",
-    priority: "low",
-    assigneeId: "",
-    labels: ["docs"],
-    dueDate: "",
-    position: 2,
-    createdAt: "2026-07-22",
-    updatedAt: "2026-07-25",
-  },
-  {
-    id: "task-4",
-    title: "Ship the first slice",
-    description: "Validate the working surface before sharing it.",
-    status: "review",
-    priority: "high",
-    assigneeId: "You",
-    labels: ["release"],
-    dueDate: "",
-    position: 3,
-    createdAt: "2026-07-23",
-    updatedAt: "2026-07-26",
-  },
-  {
-    id: "task-5",
-    title: "Create project workspace",
-    description: "Set up the project shell and connect the first workflow.",
-    status: "done",
-    priority: "medium",
-    assigneeId: "You",
-    labels: ["setup"],
-    dueDate: "",
-    position: 4,
-    createdAt: "2026-07-18",
-    updatedAt: "2026-07-24",
-  },
-];
-
 function TaskWorkspace({ projectId, projectName }: { projectId: string; projectName: string }) {
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
   const [view, setView] = useState<"board" | "list">("board");
   const [query, setQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>("all");
@@ -129,20 +52,21 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
   const [draftTitle, setDraftTitle] = useState("");
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem(`project-hub:tasks:${projectId}`);
-    setTasks(
-      stored
-        ? (JSON.parse(stored) as ProjectTask[])
-        : TASK_SEEDS.map((task) => ({ ...task, projectId }))
-    );
-    setHydrated(true);
+  const refreshTasks = useCallback(async () => {
+    setLoading(true);
+    try {
+      setTasks(await fetchProjectTasks(projectId));
+      setError(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to load tasks");
+    } finally {
+      setLoading(false);
+    }
   }, [projectId]);
 
   useEffect(() => {
-    if (hydrated)
-      window.localStorage.setItem(`project-hub:tasks:${projectId}`, JSON.stringify(tasks));
-  }, [hydrated, projectId, tasks]);
+    refreshTasks().catch(() => undefined);
+  }, [refreshTasks]);
 
   const visibleTasks = tasks.filter((task) => {
     const matchesQuery = `${task.title} ${task.description} ${task.labels.join(" ")}`
@@ -151,39 +75,37 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
     return matchesQuery && (priorityFilter === "all" || task.priority === priorityFilter);
   });
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
-  const updateTask = (id: string, changes: Partial<ProjectTask>) => {
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === id
-          ? { ...task, ...changes, updatedAt: new Date().toISOString().slice(0, 10) }
-          : task
-      )
-    );
+  const updateTask = async (id: string, changes: Partial<ProjectTask>) => {
+    setPending(true);
+    try {
+      await updateProjectTask(projectId, id, changes);
+      await refreshTasks();
+      setError(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to update task");
+    } finally {
+      setPending(false);
+    }
   };
-  const addTask = () => {
+  const addTask = async () => {
     const title = draftTitle.trim();
     if (!title) return;
-    const task: ProjectTask = {
-      id: `task-${Date.now()}`,
-      projectId,
-      title,
-      description: "",
-      status: "todo",
-      priority: "medium",
-      assigneeId: "You",
-      labels: [],
-      dueDate: "",
-      position: tasks.length,
-      createdAt: new Date().toISOString().slice(0, 10),
-      updatedAt: new Date().toISOString().slice(0, 10),
-    };
-    setTasks((current) => [...current, task]);
+    setPending(true);
+    try {
+      const task = await createProjectTask(projectId, { title });
+      await refreshTasks();
+      setSelectedTaskId(task.id);
+      setError(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to create task");
+    } finally {
+      setPending(false);
+    }
     setDraftTitle("");
-    setSelectedTaskId(task.id);
   };
-  const moveTask = (status: TaskStatus) => {
+  const moveTask = async (status: TaskStatus) => {
     if (!draggedTaskId) return;
-    updateTask(draggedTaskId, { status });
+    await updateTask(draggedTaskId, { status });
     setDraggedTaskId(null);
   };
   const taskCountByStatus = (status: TaskStatus) =>
@@ -272,6 +194,7 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
           <button
             type="button"
             onClick={addTask}
+            disabled={pending}
             className="min-h-10 rounded-e-lg bg-[oklch(28%_0.08_265)] px-4 text-sm font-semibold text-white hover:bg-[oklch(34%_0.1_265)]"
           >
             Add task
@@ -470,10 +393,21 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
               </label>
               <button
                 type="button"
-                onClick={() => {
-                  setTasks((current) => current.filter((task) => task.id !== selectedTask.id));
-                  setSelectedTaskId(null);
+                onClick={async () => {
+                  setPending(true);
+                  try {
+                    await deleteProjectTask(projectId, selectedTask.id);
+                    setSelectedTaskId(null);
+                    await refreshTasks();
+                  } catch (requestError) {
+                    setError(
+                      requestError instanceof Error ? requestError.message : "Unable to delete task"
+                    );
+                  } finally {
+                    setPending(false);
+                  }
                 }}
+                disabled={pending}
                 className="text-sm font-semibold text-rose-700 hover:text-rose-900"
               >
                 Delete task
@@ -482,9 +416,13 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
           </aside>
         </div>
       )}
-      <p className="text-xs text-slate-400">
-        Tasks are currently saved to this project in your local browser workspace.
-      </p>
+      {loading && <p className="text-xs text-slate-400">Loading tasks…</p>}
+      {error && (
+        <p className="text-sm text-rose-700" role="alert">
+          {error}
+        </p>
+      )}
+      <p className="text-xs text-slate-400">Tasks are saved to the project task workspace.</p>
     </section>
   );
 }
@@ -492,12 +430,9 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
 function OverviewTaskSummary({ projectId }: { projectId: string }) {
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   useEffect(() => {
-    const stored = window.localStorage.getItem(`project-hub:tasks:${projectId}`);
-    setTasks(
-      stored
-        ? (JSON.parse(stored) as ProjectTask[])
-        : TASK_SEEDS.map((task) => ({ ...task, projectId }))
-    );
+    fetchProjectTasks(projectId)
+      .then(setTasks)
+      .catch(() => setTasks([]));
   }, [projectId]);
   const openTasks = tasks.filter((task) => task.status !== "done");
   const blockedTasks = tasks.filter((task) =>
@@ -582,7 +517,6 @@ async function fetcherGitLog(url: string): Promise<GitCommit[]> {
 }
 
 const CURSOR_ICON_PATH = siCursor.path;
-const TAG_LISTBOX_ID = "project-tag-listbox";
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -756,6 +690,28 @@ export default function ProjectDetailPage() {
       setTagHighlightIndex(0);
     },
     [tagInput, project, currentProjectTags, updateProject]
+  );
+
+  const handleTagKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const tag =
+          tagSuggestions.canCreateNew && effectiveHighlightIndex === tagSuggestions.existing.length
+            ? tagSuggestions.newTag
+            : tagSuggestions.existing[effectiveHighlightIndex];
+        if (tag) handleAddTag(tag);
+      } else if (event.key === "Escape") {
+        setTagDropdownOpen(false);
+      } else if (event.key === "ArrowDown" && tagOptionCount > 0) {
+        event.preventDefault();
+        setTagHighlightIndex((index) => (index + 1) % tagOptionCount);
+      } else if (event.key === "ArrowUp" && tagOptionCount > 0) {
+        event.preventDefault();
+        setTagHighlightIndex((index) => (tagOptionCount + index - 1) % tagOptionCount);
+      }
+    },
+    [tagOptionCount, tagSuggestions, effectiveHighlightIndex, handleAddTag]
   );
 
   const handleRemoveTag = useCallback(
@@ -978,259 +934,48 @@ export default function ProjectDetailPage() {
                 </section>
               )}
 
-              <section className={cardClass}>
-                <h2 className={sectionTitleClass}>Tags</h2>
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {(project.tags ?? []).map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex min-h-7 items-center gap-1 rounded-md bg-[oklch(96%_0.03_230)] px-2 py-0.5 text-sm font-medium text-[oklch(34%_0.08_245)] ring-1 ring-[oklch(86%_0.06_230)]"
-                    >
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveTag(tag)}
-                        className="ml-0.5 inline-flex size-5 items-center justify-center rounded-full text-[oklch(48%_0.09_225)] transition-colors hover:bg-[oklch(95%_0.06_25)] hover:text-[oklch(50%_0.16_25)] focus:outline-none focus:ring-2 focus:ring-[oklch(78%_0.13_25)]"
-                        aria-label={`Remove ${tag}`}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  {(!project.tags || project.tags.length === 0) && (
-                    <span className="text-sm font-medium text-[oklch(50%_0.07_260)]">
-                      No tags yet.
-                    </span>
-                  )}
-                </div>
-                <div className="relative flex flex-col gap-2 sm:flex-row" ref={tagDropdownRef}>
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      placeholder="Add tag"
-                      value={tagInput}
-                      onChange={(event) => {
-                        setTagInput(event.target.value);
-                        setTagHighlightIndex(0);
-                        setTagDropdownOpen(true);
-                      }}
-                      onFocus={() => setTagDropdownOpen(true)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          if (
-                            tagSuggestions.canCreateNew &&
-                            effectiveHighlightIndex === tagSuggestions.existing.length
-                          ) {
-                            handleAddTag(tagSuggestions.newTag);
-                            return;
-                          }
-                          const existing = tagSuggestions.existing[effectiveHighlightIndex];
-                          handleAddTag(existing);
-                          return;
-                        }
-                        if (event.key === "Escape") {
-                          setTagDropdownOpen(false);
-                          return;
-                        }
-                        if (event.key === "ArrowDown" && tagOptionCount > 0) {
-                          event.preventDefault();
-                          setTagHighlightIndex((index) => (index + 1) % tagOptionCount);
-                          return;
-                        }
-                        if (event.key === "ArrowUp" && tagOptionCount > 0) {
-                          event.preventDefault();
-                          setTagHighlightIndex(
-                            (index) => (tagOptionCount + index - 1) % tagOptionCount
-                          );
-                        }
-                      }}
-                      className={inputClass}
-                      autoComplete="off"
-                      role="combobox"
-                      aria-label="Add or select a tag"
-                      aria-autocomplete="list"
-                      aria-expanded={tagDropdownOpen}
-                      aria-controls={TAG_LISTBOX_ID}
-                      aria-activedescendant={
-                        tagDropdownOpen && tagOptionCount > 0
-                          ? `tag-option-${effectiveHighlightIndex}`
-                          : undefined
-                      }
-                    />
-                    {tagDropdownOpen && tagOptionCount > 0 && (
-                      <div
-                        id={TAG_LISTBOX_ID}
-                        role="listbox"
-                        className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-slate-950/[0.05]"
-                      >
-                        {tagSuggestions.existing.map((tag, index) => (
-                          <button
-                            key={tag}
-                            id={`tag-option-${index}`}
-                            type="button"
-                            role="option"
-                            aria-selected={effectiveHighlightIndex === index}
-                            className={`block w-full px-3 py-2 text-left text-sm ${
-                              effectiveHighlightIndex === index
-                                ? "bg-[oklch(96%_0.03_230)] text-[oklch(31%_0.12_230)]"
-                                : "text-slate-700 hover:bg-[oklch(97%_0.035_205)]"
-                            }`}
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              handleAddTag(tag);
-                            }}
-                          >
-                            {tag}
-                          </button>
-                        ))}
-                        {tagSuggestions.canCreateNew && (
-                          <button
-                            id={`tag-option-${tagSuggestions.existing.length}`}
-                            type="button"
-                            role="option"
-                            aria-selected={
-                              effectiveHighlightIndex === tagSuggestions.existing.length
-                            }
-                            className={`block w-full border-t border-slate-100 px-3 py-2 text-left text-sm ${
-                              effectiveHighlightIndex === tagSuggestions.existing.length
-                                ? "bg-[oklch(96%_0.03_230)] text-[oklch(31%_0.12_230)]"
-                                : "text-slate-600 hover:bg-[oklch(97%_0.035_205)]"
-                            }`}
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              handleAddTag(tagSuggestions.newTag);
-                            }}
-                          >
-                            <span className="text-slate-500">Create tag:</span>{" "}
-                            {tagSuggestions.newTag}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleAddTag()}
-                    disabled={!hasTagInput}
-                    className={btnPrimary}
-                  >
-                    Add
-                  </button>
-                </div>
-              </section>
-
-              <section className={cardClass}>
-                <h2 className={sectionTitleClass}>Notes</h2>
-                {isEditingNote ? (
-                  <div className="flex flex-col gap-3">
-                    <textarea
-                      placeholder="Add a note"
-                      value={noteInput}
-                      onChange={(event) => setNoteInput(event.target.value)}
-                      className={`min-h-20 ${inputClass}`}
-                      aria-label={project.notes ? "Edit note" : "Add note"}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={handleSaveNote}
-                        disabled={!hasNoteInput}
-                        className={btnPrimary}
-                      >
-                        Save note
-                      </button>
-                      <button type="button" onClick={handleCancelNoteEdit} className={btnSecondary}>
-                        Cancel
-                      </button>
-                      <button type="button" onClick={handleDeleteNote} className={btnDanger}>
-                        {project.notes ? "Delete note" : "Clear"}
-                      </button>
-                    </div>
-                  </div>
-                ) : project.notes ? (
-                  <div className="space-y-3">
-                    <p className="max-w-3xl whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                      {project.notes}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={handleStartNoteEdit} className={btnPrimary}>
-                        Edit note
-                      </button>
-                      <button type="button" onClick={handleDeleteNote} className={btnDanger}>
-                        Delete note
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    <p className="text-sm font-medium text-[oklch(50%_0.07_260)]">No notes yet.</p>
-                    <textarea
-                      placeholder="Add a note"
-                      value={noteInput}
-                      onChange={(event) => setNoteInput(event.target.value)}
-                      className={`min-h-20 ${inputClass}`}
-                      aria-label="Add note"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddNote}
-                      disabled={!hasNoteInput}
-                      className={`self-start ${btnPrimary}`}
-                    >
-                      Add note
-                    </button>
-                  </div>
-                )}
-              </section>
-
-              <section className={cardClass}>
-                <h2 className={sectionTitleClass}>Goals</h2>
-                <ul className="mb-3 space-y-1.5 text-sm text-slate-700">
-                  {(project.goals ?? []).map((goal) => (
-                    <li
-                      key={goal}
-                      className="flex items-start gap-3 rounded-lg border border-[oklch(88%_0.065_140)] bg-[oklch(97%_0.045_140)] px-3 py-1.5"
-                    >
-                      <span className="mt-2 size-1.5 shrink-0 rounded-full bg-[oklch(62%_0.17_145)]" />
-                      <span className="min-w-0 flex-1 font-medium leading-6 text-[oklch(30%_0.07_150)]">
-                        {goal}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveGoal(goal)}
-                        className="inline-flex size-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200"
-                        aria-label={`Remove goal ${goal}`}
-                      >
-                        ×
-                      </button>
-                    </li>
-                  ))}
-                  {(!project.goals || project.goals.length === 0) && (
-                    <li className="font-medium text-[oklch(50%_0.07_260)]">No goals yet.</li>
-                  )}
-                </ul>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <input
-                    type="text"
-                    placeholder="Add a goal"
-                    value={goalInput}
-                    onChange={(event) => setGoalInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") handleAddGoal();
-                    }}
-                    className={inputClass}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddGoal}
-                    disabled={!hasGoalInput}
-                    className={btnPrimary}
-                  >
-                    Add goal
-                  </button>
-                </div>
-              </section>
+              <ProjectEditableSections
+                project={project}
+                cardClass={cardClass}
+                sectionTitleClass={sectionTitleClass}
+                inputClass={inputClass}
+                btnPrimary={btnPrimary}
+                btnSecondary={btnSecondary}
+                btnDanger={btnDanger}
+                tagInput={tagInput}
+                tagDropdownOpen={tagDropdownOpen}
+                tagDropdownRef={tagDropdownRef}
+                tagSuggestions={tagSuggestions}
+                tagOptionCount={tagOptionCount}
+                effectiveHighlightIndex={effectiveHighlightIndex}
+                hasTagInput={hasTagInput}
+                noteInput={noteInput}
+                isEditingNote={isEditingNote}
+                hasNoteInput={hasNoteInput}
+                goalInput={goalInput}
+                hasGoalInput={hasGoalInput}
+                onTagInputChange={(value) => {
+                  setTagInput(value);
+                  setTagHighlightIndex(0);
+                  setTagDropdownOpen(true);
+                }}
+                onTagFocus={() => setTagDropdownOpen(true)}
+                onTagKeyDown={handleTagKeyDown}
+                onAddTag={handleAddTag}
+                onRemoveTag={handleRemoveTag}
+                onNoteInputChange={setNoteInput}
+                onAddNote={handleAddNote}
+                onStartNoteEdit={handleStartNoteEdit}
+                onCancelNoteEdit={handleCancelNoteEdit}
+                onSaveNote={handleSaveNote}
+                onDeleteNote={handleDeleteNote}
+                onGoalInputChange={setGoalInput}
+                onGoalKeyDown={(event) => {
+                  if (event.key === "Enter") handleAddGoal();
+                }}
+                onAddGoal={handleAddGoal}
+                onRemoveGoal={handleRemoveGoal}
+              />
 
               <nav
                 className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[oklch(86%_0.055_265)] bg-[oklch(99%_0.012_245)] px-4 py-3 shadow-[0_2px_0_oklch(82%_0.06_255)] ring-1 ring-[oklch(96%_0.045_255)]"
