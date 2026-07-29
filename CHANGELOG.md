@@ -1,9 +1,10 @@
 ## [Unreleased]
 
-Last updated: 2026-07-25
+Last updated: 2026-07-28
 
 ### Added
 
+- Added a dedicated project Tasks tab with Overview task summaries, Kanban and list views, filters, drag-and-drop status changes, task editing, and project-scoped local persistence.
 - Added version-aware changelog retrieval using GitHub Releases, stable release-range aggregation, and raw `CHANGELOG.md` fallback.
 - Added structured changelog source diagnostics, bounded concurrent lookups, process-local caching, and an opt-in live GitHub API smoke test.
 
