@@ -26,6 +26,7 @@ services:
       - DEPENDENCY_REPORT_AI_MODEL=${DEPENDENCY_REPORT_AI_MODEL:-meta.llama-4-scout-17b-16e-instruct}
       - DEPENDENCY_REPORT_AI_KEY_ENV=${DEPENDENCY_REPORT_AI_KEY_ENV:-}
       - DEPENDENCY_REPORT_COMMAND=${DEPENDENCY_REPORT_COMMAND:-python3 /app/tools/dependency-reporter/dependency_reporter.py --config <generated from projects.json>}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
     restart: unless-stopped
 
   mcp:

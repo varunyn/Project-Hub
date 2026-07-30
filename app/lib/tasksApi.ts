@@ -43,3 +43,15 @@ export function deleteProjectTask(projectId: string, taskId: string) {
     responseData<{ deleted: boolean }>
   );
 }
+
+export function importGithubIssues(projectId: string) {
+  return fetch(`/api/projects/${projectId}/github/issues`, { method: "POST" }).then(
+    responseData<{ imported: number; updated: number; total: number }>
+  );
+}
+
+export function createGithubIssueForTask(projectId: string, taskId: string) {
+  return fetch(`/api/projects/${projectId}/tasks/${taskId}/github`, { method: "POST" }).then(
+    responseData<ProjectTask>
+  );
+}

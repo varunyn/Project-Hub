@@ -18,9 +18,11 @@ import { pushRecentProjectId } from "../../../components/Sidebar";
 import { useProject } from "../../../hooks/useProject";
 import { useProjects } from "../../../hooks/useProjects";
 import {
+  createGithubIssueForTask,
   createProjectTask,
   deleteProjectTask,
   fetchProjectTasks,
+  importGithubIssues,
   updateProjectTask,
 } from "../../../lib/tasksApi";
 import type { Project, ProjectTask, TaskPriority, TaskStatus } from "../../../types";
@@ -40,7 +42,24 @@ const TASK_COLUMNS: Array<{ id: TaskStatus; label: string; tone: string }> = [
   { id: "done", label: "Done", tone: "bg-emerald-500" },
 ];
 
-function TaskWorkspace({ projectId, projectName }: { projectId: string; projectName: string }) {
+type ToastTone = "info" | "success" | "danger";
+
+interface ToastState {
+  message: string;
+  tone: ToastTone;
+}
+
+function TaskWorkspace({
+  projectId,
+  projectName,
+  githubUrl,
+  onConnectGithub,
+}: {
+  projectId: string;
+  projectName: string;
+  githubUrl?: string;
+  onConnectGithub: () => void;
+}) {
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +70,9 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [syncingGithub, setSyncingGithub] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshTasks = useCallback(async () => {
     setLoading(true);
@@ -68,6 +90,19 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
     refreshTasks().catch(() => undefined);
   }, [refreshTasks]);
 
+  const announce = useCallback((message: string, tone: ToastTone) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, tone });
+    toastTimerRef.current = setTimeout(() => setToast(null), 4500);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    },
+    []
+  );
+
   const visibleTasks = tasks.filter((task) => {
     const matchesQuery = `${task.title} ${task.description} ${task.labels.join(" ")}`
       .toLowerCase()
@@ -82,7 +117,10 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
       await refreshTasks();
       setError(null);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Unable to update task");
+      const message =
+        requestError instanceof Error ? requestError.message : "Unable to update task";
+      setError(message);
+      announce(`Task update failed — ${message}`, "danger");
     } finally {
       setPending(false);
     }
@@ -105,8 +143,26 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
   };
   const moveTask = async (status: TaskStatus) => {
     if (!draggedTaskId) return;
-    await updateTask(draggedTaskId, { status });
+    const task = tasks.find((item) => item.id === draggedTaskId);
+    if (!task || task.status === status) return;
+    const previousTasks = tasks;
+    setTasks((current) =>
+      current.map((item) => (item.id === task.id ? { ...item, status } : item))
+    );
     setDraggedTaskId(null);
+    setPending(true);
+    try {
+      const updated = await updateProjectTask(projectId, task.id, { status });
+      setTasks((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setError(null);
+    } catch (requestError) {
+      setTasks(previousTasks);
+      const message = requestError instanceof Error ? requestError.message : "Unable to move task";
+      setError(message);
+      announce(`Task move failed — ${message}`, "danger");
+    } finally {
+      setPending(false);
+    }
   };
   const taskCountByStatus = (status: TaskStatus) =>
     tasks.filter((task) => task.status === status).length;
@@ -115,9 +171,51 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
     medium: "text-amber-700",
     high: "text-rose-700",
   };
+  const syncGithub = async () => {
+    setSyncingGithub(true);
+    announce("Checking GitHub for issue updates…", "info");
+    try {
+      const result = await importGithubIssues(projectId);
+      await refreshTasks();
+      setError(null);
+      if (result.total === 0) {
+        announce("GitHub sync complete — no issues found.", "success");
+      } else if (result.imported === 0) {
+        announce("GitHub is up to date — no new issues found.", "success");
+      } else {
+        announce(
+          `GitHub sync complete — ${result.imported} new issue${result.imported === 1 ? "" : "s"} added.`,
+          "success"
+        );
+      }
+    } catch (requestError) {
+      const message =
+        requestError instanceof Error ? requestError.message : "Unable to sync GitHub issues";
+      setError(message);
+      announce(`GitHub sync failed — ${message}`, "danger");
+    } finally {
+      setSyncingGithub(false);
+    }
+  };
 
   return (
     <section className="space-y-4" aria-labelledby="tasks-heading">
+      {toast && (
+        <div
+          className={`fixed bottom-5 right-5 z-50 max-w-sm rounded-lg border px-4 py-3 text-sm font-medium shadow-lg ${
+            toast.tone === "danger"
+              ? "border-rose-200 bg-rose-50 text-rose-800"
+              : toast.tone === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-sky-200 bg-sky-50 text-sky-800"
+          }`}
+          role={toast.tone === "danger" ? "alert" : "status"}
+          aria-live={toast.tone === "danger" ? "assertive" : "polite"}
+          aria-atomic="true"
+        >
+          {toast.message}
+        </div>
+      )}
       <div className="flex flex-col gap-4 rounded-lg border border-[oklch(88%_0.03_255)] bg-[oklch(99%_0.006_245)] p-4 shadow-[0_1px_2px_oklch(25%_0.04_260_/_0.08)] sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-[oklch(45%_0.13_205)]">
@@ -154,7 +252,35 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
             List
           </button>
         </fieldset>
+        {githubUrl && (
+          <button
+            type="button"
+            onClick={syncGithub}
+            disabled={syncingGithub}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            {syncingGithub ? "Syncing…" : "Sync GitHub issues"}
+          </button>
+        )}
       </div>
+
+      {!githubUrl && (
+        <div className="flex flex-col gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Connect this project to GitHub</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Add the repository URL to import issues and create GitHub issues from tasks.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onConnectGithub}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Add repository URL
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <label className="relative min-w-0 flex-1">
@@ -329,6 +455,49 @@ function TaskWorkspace({ projectId, projectName }: { projectId: string; projectN
                   className="mt-1 w-full min-h-10 rounded-lg border border-slate-200 px-3 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-sky-200"
                 />
               </label>
+              {githubUrl && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                  {selectedTask.githubIssueUrl ? (
+                    <a
+                      className="font-semibold text-sky-700 hover:underline"
+                      href={selectedTask.githubIssueUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open GitHub issue #{selectedTask.githubIssueNumber}
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={async () => {
+                        setPending(true);
+                        try {
+                          const updated = await createGithubIssueForTask(
+                            projectId,
+                            selectedTask.id
+                          );
+                          setTasks((current) =>
+                            current.map((task) => (task.id === updated.id ? updated : task))
+                          );
+                          setError(null);
+                        } catch (requestError) {
+                          setError(
+                            requestError instanceof Error
+                              ? requestError.message
+                              : "Unable to create GitHub issue"
+                          );
+                        } finally {
+                          setPending(false);
+                        }
+                      }}
+                      className="font-semibold text-slate-700 hover:text-sky-700 disabled:opacity-60"
+                    >
+                      Create GitHub issue
+                    </button>
+                  )}
+                </div>
+              )}
               <label className="block text-sm font-semibold text-slate-700">
                 Description
                 <textarea
@@ -842,7 +1011,12 @@ export default function ProjectDetailPage() {
       <ProjectDetailTabs projectId={project.id} activeTab={activeTab} />
 
       {activeTab === "tasks" ? (
-        <TaskWorkspace projectId={project.id} projectName={project.name} />
+        <TaskWorkspace
+          projectId={project.id}
+          projectName={project.name}
+          githubUrl={project.githubUrl}
+          onConnectGithub={() => router.replace(`/projects/${project.id}?edit=1`)}
+        />
       ) : (
         <>
           <OverviewTaskSummary projectId={project.id} />

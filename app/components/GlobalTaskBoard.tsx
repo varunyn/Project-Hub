@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { deleteProjectTask, fetchAllTasks, updateProjectTask } from "../lib/tasksApi";
 import type { Project, ProjectTask, TaskPriority, TaskStatus } from "../types";
 
@@ -22,6 +22,10 @@ interface GlobalTaskBoardProps {
   projects: Project[];
 }
 
+interface ToastState {
+  message: string;
+}
+
 export default function GlobalTaskBoard({ projects }: GlobalTaskBoardProps) {
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [query, setQuery] = useState("");
@@ -33,6 +37,8 @@ export default function GlobalTaskBoard({ projects }: GlobalTaskBoardProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -49,6 +55,19 @@ export default function GlobalTaskBoard({ projects }: GlobalTaskBoardProps) {
   useEffect(() => {
     refresh().catch(() => undefined);
   }, [refresh]);
+
+  const announce = useCallback((message: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message });
+    toastTimerRef.current = setTimeout(() => setToast(null), 4500);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    },
+    []
+  );
 
   const projectNames = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
@@ -75,7 +94,10 @@ export default function GlobalTaskBoard({ projects }: GlobalTaskBoardProps) {
         current?.id === task.id ? { ...current, ...changes } : current
       );
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Unable to update task");
+      const message =
+        requestError instanceof Error ? requestError.message : "Unable to update task";
+      setError(message);
+      announce(`Task update failed — ${message}`);
     } finally {
       setPending(false);
     }
@@ -84,8 +106,27 @@ export default function GlobalTaskBoard({ projects }: GlobalTaskBoardProps) {
   const moveTask = async (status: TaskStatus) => {
     const task = tasks.find((item) => item.id === draggedTaskId);
     if (!task || task.status === status) return;
-    await updateTask(task, { status });
     setDraggedTaskId(null);
+    const previousTasks = tasks;
+    setTasks((current) =>
+      current.map((item) => (item.id === task.id ? { ...item, status } : item))
+    );
+    setPending(true);
+    try {
+      const updated = await updateProjectTask(task.projectId, task.id, { status });
+      setTasks((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setSelectedTask((current) =>
+        current?.id === updated.id ? { ...current, ...updated } : current
+      );
+      setError(null);
+    } catch (requestError) {
+      setTasks(previousTasks);
+      const message = requestError instanceof Error ? requestError.message : "Unable to move task";
+      setError(message);
+      announce(`Task move failed — ${message}`);
+    } finally {
+      setPending(false);
+    }
   };
 
   const taskCard = (task: ProjectTask) => (
@@ -114,6 +155,16 @@ export default function GlobalTaskBoard({ projects }: GlobalTaskBoardProps) {
 
   return (
     <section className="space-y-5" aria-labelledby="global-tasks-heading">
+      {toast && (
+        <div
+          className="fixed bottom-5 right-5 z-50 max-w-sm rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800 shadow-lg"
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+        >
+          {toast.message}
+        </div>
+      )}
       <header className="rounded-lg border border-[oklch(88%_0.03_255)] bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

@@ -39,6 +39,7 @@ Project Hub is a local Quest dashboard for tracking development projects across 
 - **Local-first storage**: Store project records in a simple JSON file with no external service required.
 - **Project scanning**: Discover projects from a configured root path and pull README previews where available.
 - **Git activity**: Show recent commits from real git repositories, with optional seeded demo activity for screenshots.
+- **Optional GitHub issue sync**: Import repository issues into a project Kanban and explicitly create GitHub issues from local tasks.
 - **Docker support**: Run the app in a container with host project path mapping.
 
 ## Tech Stack
@@ -96,6 +97,8 @@ HOST_PROJECTS_PATH=/path/to/your/projects
 PROJECT_DATA_PATH=./app/data
 DEPENDENCY_REPORT_RUN_ENABLED=true
 DEPENDENCY_REPORT_COMMAND=python3 /app/tools/dependency-reporter/dependency_reporter.py --config "<generated from projects.json>"
+# Optional: enables GitHub issue import and task-to-issue creation.
+GITHUB_TOKEN=github_pat_...
 ```
 
 Start the container:
@@ -158,6 +161,8 @@ Each record can include:
 - `url`, `githubUrl`, `devServerUrl`, `startCommand`
 - `readmePreview`, `docCount`, `lastUpdated`
 - `mockCommits` for screenshot/demo activity
+
+Projects with a `githubUrl` can use the **Sync GitHub issues** action from the Tasks tab. Moving a synced task updates its GitHub issue with a `status:*` label; moving it to Done also closes the issue. GitHub integration is optional; without `GITHUB_TOKEN`, the local Kanban continues to work normally. The token is read server-side and is not stored in project or task data.
 
 > [!TIP]
 > The app can show real git history when `path` points at a git repository. For demos, `mockCommits` lets the Recent activity panel show stable screenshot data without depending on local repositories.

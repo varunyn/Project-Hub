@@ -1,8 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server";
 import type { TaskPriority, TaskStatus } from "../../../../../types";
+import {
+  ensureGithubLabel,
+  getGithubIssue,
+  updateGithubIssueState,
+} from "../../../../../utils/githubApi";
+import {
+  githubIssueStateForTask,
+  githubStatusLabelForTask,
+  parseGithubRepository,
+} from "../../../../../utils/githubSync";
 import { getProjects } from "../../../../../utils/projectUtils";
 import {
   deleteTask,
+  getProjectTasks,
   TASK_PRIORITIES,
   TASK_STATUSES,
   updateTask,
@@ -31,6 +42,8 @@ function validChanges(input: Record<string, unknown>) {
     status: (value) => (TASK_STATUSES.includes(value as TaskStatus) ? value : null),
     priority: (value) => (TASK_PRIORITIES.includes(value as TaskPriority) ? value : null),
     position: (value) => (Number.isInteger(value) && Number(value) >= 0 ? value : null),
+    githubIssueNumber: (value) => (Number.isInteger(value) && Number(value) > 0 ? value : null),
+    githubIssueUrl: (value) => (typeof value === "string" && value.length <= 500 ? value : null),
   };
   const changes: Record<string, unknown> = {};
   for (const [key, validator] of Object.entries(validators)) {
@@ -50,9 +63,60 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const changes = validChanges((await request.json().catch(() => ({}))) as Record<string, unknown>);
   if (!changes || Object.keys(changes).length === 0)
     return NextResponse.json({ error: "Invalid task changes" }, { status: 400 });
+  const existingTask = getProjectTasks(id).find((task) => task.id === taskId);
+  if (!existingTask) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  const nextStatus = changes.status as TaskStatus | undefined;
+  if (
+    nextStatus &&
+    nextStatus !== existingTask.status &&
+    existingTask.githubIssueNumber &&
+    projectGithubSyncAvailable(id)
+  ) {
+    try {
+      const project = getProjects().find((item) => item.id === id);
+      const repository = parseGithubRepository(project?.githubUrl ?? "");
+      const statusLabel = githubStatusLabelForTask(nextStatus);
+      const githubIssue = await getGithubIssue(
+        repository.owner,
+        repository.repo,
+        existingTask.githubIssueNumber,
+        process.env.GITHUB_TOKEN as string
+      );
+      await ensureGithubLabel(
+        repository.owner,
+        repository.repo,
+        process.env.GITHUB_TOKEN as string,
+        statusLabel,
+        "1d76db"
+      );
+      await updateGithubIssueState(
+        repository.owner,
+        repository.repo,
+        existingTask.githubIssueNumber,
+        process.env.GITHUB_TOKEN as string,
+        githubIssueStateForTask(nextStatus),
+        [
+          ...githubIssue.labels
+            .map((label) => label.name)
+            .filter((label) => !label.startsWith("status:")),
+          statusLabel,
+        ]
+      );
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "GitHub issue update failed" },
+        { status: 502 }
+      );
+    }
+  }
   const updated = await updateTask(id, taskId, changes);
   if (!updated) return NextResponse.json({ error: "Task not found" }, { status: 404 });
   return NextResponse.json(updated);
+}
+
+function projectGithubSyncAvailable(projectId: string): boolean {
+  const project = getProjects().find((item) => item.id === projectId);
+  return Boolean(process.env.GITHUB_TOKEN && project?.githubUrl);
 }
 
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {

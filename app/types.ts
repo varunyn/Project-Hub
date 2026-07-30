@@ -40,4 +40,6 @@ export interface ProjectTask {
   position: number;
   createdAt: string;
   updatedAt: string;
+  githubIssueNumber?: number;
+  githubIssueUrl?: string;
 }
