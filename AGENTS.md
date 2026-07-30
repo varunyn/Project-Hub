@@ -51,3 +51,22 @@ For released versions, include the release date in the heading using `## [1.4.0]
 Before finishing, verify that the entry is accurate, user-visible, correctly categorized, and clear about migration needs.
 
 In the final response, summarize the changelog entry and state whether the change is breaking or requires migration.
+
+# Release instructions
+
+When preparing a release, publish a GitHub Release with concise, user-facing release notes. Do not rely on `--generate-notes` alone: direct commits and unlabeled pull requests can produce an empty release body.
+
+## Release notes
+
+- Base the notes on the corresponding versioned `CHANGELOG.md` section.
+- Start with a `## Highlights` heading and summarize the most important user-facing changes.
+- Include `## Upgrade notes` when configuration, migration, or breaking-change information matters.
+- State `No breaking changes or migration required.` when that is true.
+- Include the full changelog comparison link as a supplement, not as the only release content.
+
+## Publishing checklist
+
+1. Confirm the version in `package.json`, the release tag, and the versioned changelog heading agree.
+2. Run the relevant tests and checks.
+3. Create the release with an explicit title and notes body or notes file.
+4. Read the published release page/API response to verify its notes are present and accurate.
