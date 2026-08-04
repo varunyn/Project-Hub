@@ -16,8 +16,8 @@ const RECORD_SEPARATOR = "\x1e";
 
 function hasGitDirectory(dir: string): boolean {
   const gitPath = path.join(dir, ".git");
-  if (!fs.existsSync(gitPath)) return false;
-  const stat = fs.statSync(gitPath);
+  if (!fs.existsSync(/* turbopackIgnore: true */ gitPath)) return false;
+  const stat = fs.statSync(/* turbopackIgnore: true */ gitPath);
   return stat.isDirectory() || stat.isFile();
 }
 
@@ -44,7 +44,7 @@ function realPathForComparison(dir: string): string {
 
 function findGitLogTarget(project: Pick<Project, "name" | "path">): GitLogTarget | null {
   const dir = resolveProjectPathForServer(project.path);
-  if (!fs.existsSync(dir)) return null;
+  if (!fs.existsSync(/* turbopackIgnore: true */ dir)) return null;
 
   const gitRoot = gitRootForDirectory(dir);
   if (gitRoot) {
@@ -54,9 +54,10 @@ function findGitLogTarget(project: Pick<Project, "name" | "path">): GitLogTarget
     };
   }
 
-  const children = fs.readdirSync(dir, { withFileTypes: true });
+  const children = fs.readdirSync(/* turbopackIgnore: true */ dir, { withFileTypes: true });
   const withGit = children.filter(
-    (child) => child.isDirectory() && hasGitDirectory(path.join(dir, child.name))
+    (child) =>
+      child.isDirectory() && hasGitDirectory(path.join(/* turbopackIgnore: true */ dir, child.name))
   );
   if (withGit.length === 0) return null;
   if (withGit.length === 1) {

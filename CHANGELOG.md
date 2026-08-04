@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Changed
+
+- Upgraded the app to Next.js 16.3.0 and switched the default font to a system stack so builds do not depend on Google Fonts being reachable.
+
+### Fixed
+
+- Production builds now complete with Turbopack while runtime filesystem scans remain excluded from standalone tracing.
+
 ## [0.2.0] - 2026-07-30
 
 ### Added

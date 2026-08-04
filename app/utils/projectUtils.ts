@@ -20,12 +20,12 @@ export function resolveProjectPathForServer(projectPath: string): string {
 }
 
 function ensureDataDirExists() {
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+  if (!fs.existsSync(/* turbopackIgnore: true */ dataDir)) {
+    fs.mkdirSync(/* turbopackIgnore: true */ dataDir, { recursive: true });
   }
 
-  if (!fs.existsSync(projectsFilePath)) {
-    fs.writeFileSync(projectsFilePath, "[]", "utf8");
+  if (!fs.existsSync(/* turbopackIgnore: true */ projectsFilePath)) {
+    fs.writeFileSync(/* turbopackIgnore: true */ projectsFilePath, "[]", "utf8");
   }
 }
 
@@ -33,7 +33,7 @@ export function getProjects(): Project[] {
   ensureDataDirExists();
 
   try {
-    const projectsData = fs.readFileSync(projectsFilePath, "utf8");
+    const projectsData = fs.readFileSync(/* turbopackIgnore: true */ projectsFilePath, "utf8");
     return JSON.parse(projectsData);
   } catch (error) {
     console.error("Error reading projects:", error);
@@ -109,9 +109,9 @@ export function readProjectReadme(projectPath: string): string {
     const possibleNames = ["README.md", "Readme.md", "readme.md", "README.txt", "readme.txt"];
 
     for (const fileName of possibleNames) {
-      const readmePath = path.join(projectPath, fileName);
-      if (fs.existsSync(readmePath)) {
-        return fs.readFileSync(readmePath, "utf8");
+      const readmePath = path.join(/* turbopackIgnore: true */ projectPath, fileName);
+      if (fs.existsSync(/* turbopackIgnore: true */ readmePath)) {
+        return fs.readFileSync(/* turbopackIgnore: true */ readmePath, "utf8");
       }
     }
 

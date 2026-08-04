@@ -291,8 +291,8 @@ export async function readLatestDependencyReport(
     };
   }
 
-  const reportPath = path.join(outputDir, reportFileName);
-  const rawJson = await fs.readFile(reportPath, "utf8");
+  const reportPath = path.join(/* turbopackIgnore: true */ outputDir, reportFileName);
+  const rawJson = await fs.readFile(/* turbopackIgnore: true */ reportPath, "utf8");
   const rawReport = JSON.parse(rawJson) as RawReport;
   const projects = Array.isArray(rawReport.projects)
     ? rawReport.projects.map(normalizeProject).sort((a, b) => a.path.localeCompare(b.path))

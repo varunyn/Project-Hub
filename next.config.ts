@@ -6,13 +6,12 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   serverExternalPackages: [],
-  reactCompiler: true,
+  reactCompiler: false,
   turbopack: {
     root: process.cwd(),
   },
   experimental: {
     turbopackFileSystemCacheForDev: true,
-    turbopackFileSystemCacheForBuild: true,
   },
 };
 

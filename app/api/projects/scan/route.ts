@@ -68,7 +68,7 @@ export async function POST(request: Request) {
 
     let accessibleRootCount = 0;
     for (const rootPath of scanRoots) {
-      if (!fs.existsSync(rootPath)) {
+      if (!fs.existsSync(/* turbopackIgnore: true */ rootPath)) {
         console.warn("[scan-projects] Scan root not accessible", { rootPath });
         continue;
       }

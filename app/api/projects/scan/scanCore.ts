@@ -22,17 +22,19 @@ export function normalizePath(filePath: string): string {
 }
 
 export function hasProjectMarker(dirPath: string): boolean {
-  return PROJECT_MARKERS.some((marker) => fs.existsSync(path.join(dirPath, marker)));
+  return PROJECT_MARKERS.some((marker) =>
+    fs.existsSync(/* turbopackIgnore: true */ path.join(dirPath, marker))
+  );
 }
 
 export function detectTechStack(dirPath: string): string[] {
   const techStack = new Set<string>();
 
-  if (fs.existsSync(path.join(dirPath, "package.json"))) {
+  if (fs.existsSync(/* turbopackIgnore: true */ path.join(dirPath, "package.json"))) {
     techStack.add("JavaScript");
     try {
       const packageJson = JSON.parse(
-        fs.readFileSync(path.join(dirPath, "package.json"), "utf8")
+        fs.readFileSync(/* turbopackIgnore: true */ path.join(dirPath, "package.json"), "utf8")
       ) as {
         dependencies?: Record<string, string>;
         devDependencies?: Record<string, string>;
@@ -43,7 +45,10 @@ export function detectTechStack(dirPath: string): string[] {
       };
       if (deps.react) techStack.add("React");
       if (deps.next) techStack.add("Next.js");
-      if (deps.typescript || fs.existsSync(path.join(dirPath, "tsconfig.json"))) {
+      if (
+        deps.typescript ||
+        fs.existsSync(/* turbopackIgnore: true */ path.join(dirPath, "tsconfig.json"))
+      ) {
         techStack.add("TypeScript");
       }
     } catch (error) {
@@ -52,15 +57,18 @@ export function detectTechStack(dirPath: string): string[] {
   }
 
   if (
-    fs.existsSync(path.join(dirPath, "pyproject.toml")) ||
-    fs.existsSync(path.join(dirPath, "requirements.txt"))
+    fs.existsSync(/* turbopackIgnore: true */ path.join(dirPath, "pyproject.toml")) ||
+    fs.existsSync(/* turbopackIgnore: true */ path.join(dirPath, "requirements.txt"))
   ) {
     techStack.add("Python");
   }
-  if (fs.existsSync(path.join(dirPath, "Cargo.toml"))) techStack.add("Rust");
-  if (fs.existsSync(path.join(dirPath, "go.mod"))) techStack.add("Go");
-  if (fs.existsSync(path.join(dirPath, "pom.xml"))) techStack.add("Java");
-  if (fs.existsSync(path.join(dirPath, "Gemfile"))) techStack.add("Ruby");
+  if (fs.existsSync(/* turbopackIgnore: true */ path.join(dirPath, "Cargo.toml")))
+    techStack.add("Rust");
+  if (fs.existsSync(/* turbopackIgnore: true */ path.join(dirPath, "go.mod"))) techStack.add("Go");
+  if (fs.existsSync(/* turbopackIgnore: true */ path.join(dirPath, "pom.xml")))
+    techStack.add("Java");
+  if (fs.existsSync(/* turbopackIgnore: true */ path.join(dirPath, "Gemfile")))
+    techStack.add("Ruby");
 
   return Array.from(techStack);
 }
@@ -70,9 +78,9 @@ export function readProjectReadme(projectPath: string): string {
     const possibleNames = ["README.md", "Readme.md", "readme.md", "README.txt", "readme.txt"];
 
     for (const fileName of possibleNames) {
-      const readmePath = path.join(projectPath, fileName);
-      if (fs.existsSync(readmePath)) {
-        return fs.readFileSync(readmePath, "utf8");
+      const readmePath = path.join(/* turbopackIgnore: true */ projectPath, fileName);
+      if (fs.existsSync(/* turbopackIgnore: true */ readmePath)) {
+        return fs.readFileSync(/* turbopackIgnore: true */ readmePath, "utf8");
       }
     }
 
@@ -84,12 +92,12 @@ export function readProjectReadme(projectPath: string): string {
 }
 
 export function listDirectories(rootPath: string): string[] {
-  if (!fs.existsSync(rootPath)) return [];
+  if (!fs.existsSync(/* turbopackIgnore: true */ rootPath)) return [];
   try {
     return fs
-      .readdirSync(rootPath, { withFileTypes: true })
+      .readdirSync(/* turbopackIgnore: true */ rootPath, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
-      .map((entry) => path.join(rootPath, entry.name));
+      .map((entry) => path.join(/* turbopackIgnore: true */ rootPath, entry.name));
   } catch (error) {
     console.warn("Failed to read root directory during scan:", rootPath, error);
     return [];
