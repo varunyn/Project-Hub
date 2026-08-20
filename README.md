@@ -185,10 +185,10 @@ Generated release notes are configured in `.github/release.yml`. GitHub groups m
 ```bash
 git tag -a v0.1.x -m "Release v0.1.x"
 git push origin main --follow-tags
-gh release create v0.1.x --generate-notes
+gh release create v0.1.x --title "v0.1.x" --notes-file /tmp/project-hub-v0.1.x-release-notes.md
 ```
 
-Use `skip-changelog` on a PR to keep it out of generated notes.
+Write the notes from the matching `CHANGELOG.md` version before publishing. Include highlights, any upgrade or migration guidance, and the full changelog comparison link; do not rely on generated notes alone. Use `skip-changelog` on a PR to keep it out of generated notes.
 
 ## Troubleshooting
 
