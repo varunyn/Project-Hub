@@ -17,6 +17,7 @@ import ProjectForm from "../../../components/ProjectForm";
 import { pushRecentProjectId } from "../../../components/Sidebar";
 import { useProject } from "../../../hooks/useProject";
 import { useProjects } from "../../../hooks/useProjects";
+import { TASK_COLUMNS, type ToastState, type ToastTone } from "../../../lib/taskConstants";
 import {
   createGithubIssueForTask,
   createProjectTask,
@@ -32,21 +33,6 @@ interface GitCommit {
   hash: string;
   subject: string;
   date: string;
-}
-
-const TASK_COLUMNS: Array<{ id: TaskStatus; label: string; tone: string }> = [
-  { id: "backlog", label: "Backlog", tone: "bg-slate-400" },
-  { id: "todo", label: "Todo", tone: "bg-sky-500" },
-  { id: "in-progress", label: "In Progress", tone: "bg-amber-500" },
-  { id: "review", label: "Review", tone: "bg-violet-500" },
-  { id: "done", label: "Done", tone: "bg-emerald-500" },
-];
-
-type ToastTone = "info" | "success" | "danger";
-
-interface ToastState {
-  message: string;
-  tone: ToastTone;
 }
 
 function TaskWorkspace({

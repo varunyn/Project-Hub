@@ -1,16 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TASK_COLUMNS as columns } from "../lib/taskConstants";
 import { deleteProjectTask, fetchAllTasks, updateProjectTask } from "../lib/tasksApi";
 import type { Project, ProjectTask, TaskPriority, TaskStatus } from "../types";
-
-const columns: Array<{ id: TaskStatus; label: string; tone: string }> = [
-  { id: "backlog", label: "Backlog", tone: "bg-slate-400" },
-  { id: "todo", label: "Todo", tone: "bg-sky-500" },
-  { id: "in-progress", label: "In Progress", tone: "bg-amber-500" },
-  { id: "review", label: "Review", tone: "bg-violet-500" },
-  { id: "done", label: "Done", tone: "bg-emerald-500" },
-];
 
 const priorityStyles: Record<TaskPriority, string> = {
   low: "text-slate-500",
