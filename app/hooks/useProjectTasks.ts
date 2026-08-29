@@ -13,12 +13,15 @@ import {
 import type { ProjectTask, TaskStatus } from "../types";
 
 export function useProjectTasks(projectId: string | null) {
+  const key = projectId ? `project-tasks:${projectId}` : null;
   const {
     data: tasks = [],
     error,
     isLoading,
     mutate,
-  } = useSWR<ProjectTask[]>(projectId, projectId ? fetchProjectTasks : null);
+  } = useSWR<ProjectTask[]>(key, () =>
+    projectId ? fetchProjectTasks(projectId) : Promise.resolve([])
+  );
 
   const refresh = useCallback(() => mutate(), [mutate]);
 
