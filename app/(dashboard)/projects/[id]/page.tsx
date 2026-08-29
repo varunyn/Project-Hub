@@ -16,9 +16,10 @@ import {
 import { ProjectEditableSections } from "../../../components/ProjectEditableSections";
 import ProjectForm from "../../../components/ProjectForm";
 import { pushRecentProjectId } from "../../../components/Sidebar";
-import TaskWorkspace from "../../../components/TaskWorkspace";
+import TaskBoard from "../../../components/TaskBoard";
 import { useProject } from "../../../hooks/useProject";
 import { useProjects } from "../../../hooks/useProjects";
+import { useProjectTasks } from "../../../hooks/useProjectTasks";
 import type { Project } from "../../../types";
 import { formatCommitDate } from "../../../utils/format";
 
@@ -44,6 +45,17 @@ export default function ProjectDetailPage() {
   const id = typeof params.id === "string" ? params.id : null;
   const { project, loading, refetch, updateProject } = useProject(id);
   const { projects } = useProjects();
+  const {
+    tasks,
+    loading: tasksLoading,
+    error: tasksError,
+    createTask,
+    updateTask,
+    deleteTask,
+    moveTask,
+    syncGithub,
+    createGithubIssue,
+  } = useProjectTasks(id);
   const [copyPathFeedback, setCopyPathFeedback] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
@@ -361,11 +373,19 @@ export default function ProjectDetailPage() {
       <ProjectDetailTabs projectId={project.id} activeTab={activeTab} />
 
       {activeTab === "tasks" ? (
-        <TaskWorkspace
-          projectId={project.id}
-          projectName={project.name}
+        <TaskBoard
+          tasks={tasks}
+          title={`Tasks for ${project.name}`}
+          loading={tasksLoading}
+          error={tasksError}
+          onCreateTask={createTask}
+          onUpdateTask={updateTask}
+          onDeleteTask={deleteTask}
+          onMoveTask={moveTask}
           githubUrl={project.githubUrl}
           onConnectGithub={() => router.replace(`/projects/${project.id}?edit=1`)}
+          onSyncGithub={syncGithub}
+          onCreateGithubIssue={createGithubIssue}
         />
       ) : (
         <>

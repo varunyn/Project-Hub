@@ -12,6 +12,8 @@
 
 - Dependency reports now ignore generated `.eve` snapshots, deduplicate equivalent AI analysis with a bounded persistent cache, and make deterministic results available before optional enrichment finishes.
 - Dependency report runs are now persisted as server-managed background jobs with shared status and duplicate-run protection across navigation and refreshes.
+- Unified the project and global task boards into a single TaskBoard module so both workspaces share the same board, list, filter, and editing behavior.
+- The global `/tasks` workspace now supports the full task detail panel, including description, assignee, and due date.
 - Upgraded the app to Next.js 16.3.0 and switched the default font to a system stack so builds do not depend on Google Fonts being reachable.
 
 ### Fixed
