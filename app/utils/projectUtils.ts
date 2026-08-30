@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Project } from "../types";
+import { withFileLock } from "./fileLock";
 
 const dataDir = process.env.PROJECT_DATA_DIR || path.join(process.cwd(), "app", "data");
 const projectsFilePath = path.join(dataDir, "projects.json");
@@ -43,7 +44,9 @@ export function getProjects(): Project[] {
 
 function saveProjects(projects: Project[]): void {
   try {
-    fs.writeFileSync(projectsFilePath, JSON.stringify(projects, null, 2), "utf8");
+    const temporaryPath = `${projectsFilePath}.${process.pid}.tmp`;
+    fs.writeFileSync(temporaryPath, JSON.stringify(projects, null, 2), "utf8");
+    fs.renameSync(temporaryPath, projectsFilePath);
   } catch (error) {
     console.error("Error saving projects:", error);
   }
@@ -61,47 +64,55 @@ async function queueProjectsWrite<T>(operation: () => T): Promise<T> {
 }
 
 export async function setProjects(projects: Project[]): Promise<Project[]> {
-  return queueProjectsWrite(() => {
-    saveProjects(projects);
-    return projects;
-  });
+  return queueProjectsWrite(() =>
+    withFileLock(projectsFilePath, () => {
+      saveProjects(projects);
+      return projects;
+    })
+  );
 }
 
 export async function addProject(project: Project): Promise<Project[]> {
-  return queueProjectsWrite(() => {
-    const projects = getProjects();
-    const newProjects = [...projects, project];
-    saveProjects(newProjects);
-    return newProjects;
-  });
+  return queueProjectsWrite(() =>
+    withFileLock(projectsFilePath, () => {
+      const projects = getProjects();
+      const newProjects = [...projects, project];
+      saveProjects(newProjects);
+      return newProjects;
+    })
+  );
 }
 
 export async function updateProject(id: string, partial: Partial<Project>): Promise<Project[]> {
-  return queueProjectsWrite(() => {
-    const projects = getProjects();
-    const existing = projects.find((p) => p.id === id);
-    if (!existing) return projects;
-    const lastUpdated = new Date().toISOString().split("T")[0];
-    const updatedProject: Project = {
-      ...existing,
-      ...partial,
-      id: existing.id,
-      dateCreated: existing.dateCreated,
-      lastUpdated,
-    };
-    const newProjects = projects.map((p) => (p.id === id ? updatedProject : p));
-    saveProjects(newProjects);
-    return newProjects;
-  });
+  return queueProjectsWrite(() =>
+    withFileLock(projectsFilePath, () => {
+      const projects = getProjects();
+      const existing = projects.find((p) => p.id === id);
+      if (!existing) return projects;
+      const lastUpdated = new Date().toISOString().split("T")[0];
+      const updatedProject: Project = {
+        ...existing,
+        ...partial,
+        id: existing.id,
+        dateCreated: existing.dateCreated,
+        lastUpdated,
+      };
+      const newProjects = projects.map((p) => (p.id === id ? updatedProject : p));
+      saveProjects(newProjects);
+      return newProjects;
+    })
+  );
 }
 
 export async function deleteProject(id: string): Promise<Project[]> {
-  return queueProjectsWrite(() => {
-    const projects = getProjects();
-    const newProjects = projects.filter((project) => project.id !== id);
-    saveProjects(newProjects);
-    return newProjects;
-  });
+  return queueProjectsWrite(() =>
+    withFileLock(projectsFilePath, () => {
+      const projects = getProjects();
+      const newProjects = projects.filter((project) => project.id !== id);
+      saveProjects(newProjects);
+      return newProjects;
+    })
+  );
 }
 
 export function readProjectReadme(projectPath: string): string {

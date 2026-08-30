@@ -1,0 +1,22 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "..",
+    "outDir": "dist",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    "isolatedModules": false,
+    "incremental": false,
+    "sourceMap": false
+  },
+  "include": [
+    "server.ts",
+    "../app/types.ts",
+    "../app/utils/fileLock.ts",
+    "../app/utils/projectUtils.ts",
+    "../app/utils/taskUtils.ts",
+    "../app/lib/dependencyReport.ts"
+  ]
+}

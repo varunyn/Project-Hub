@@ -36,7 +36,6 @@ docs
 # Scripts not needed in image
 start.sh
 stop.sh
-mcp
 stagewise.json
 
 # Python / uv (not used by Next.js in image)
@@ -54,9 +53,8 @@ coverage
 .pre-commit-config.yaml
 .codegraph
 
-# Files needed by the optional Docker Compose MCP profile
+# MCP source is compiled as part of the application build.
 !mcp/
-mcp/**
-!mcp/server.py
-!mcp/pyproject.toml
-!mcp/uv.lock
+mcp/*
+!mcp/server.ts
+!mcp/tsconfig.json

@@ -114,6 +114,7 @@ docker compose up -d
 
 Open [http://localhost:3080](http://localhost:3080).
 
+ The MCP server runs locally over stdio. See [`mcp/README.md`](mcp/README.md) for client configuration and the required `pnpm build` step.
 > [!IMPORTANT]
 > Docker cannot open macOS Finder directly. In Docker, use **Copy path** or configure path mapping with `HOST_PROJECTS_PATH` and `CONTAINER_PROJECTS_ROOT`.
 

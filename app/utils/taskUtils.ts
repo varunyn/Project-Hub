@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { ProjectTask, TaskPriority, TaskStatus } from "../types";
+import { withFileLock } from "./fileLock";
 
 const dataDir = process.env.PROJECT_DATA_DIR || path.join(process.cwd(), "app", "data");
 const tasksFilePath = path.join(dataDir, "tasks.json");
@@ -24,7 +25,9 @@ export function getTasks(): ProjectTask[] {
 }
 
 function saveTasks(tasks: ProjectTask[]) {
-  fs.writeFileSync(tasksFilePath, JSON.stringify(tasks, null, 2), "utf8");
+  const temporaryPath = `${tasksFilePath}.${process.pid}.tmp`;
+  fs.writeFileSync(temporaryPath, JSON.stringify(tasks, null, 2), "utf8");
+  fs.renameSync(temporaryPath, tasksFilePath);
 }
 
 let tasksWriteQueue: Promise<void> = Promise.resolve();
@@ -57,11 +60,13 @@ export function getAllTasks(): ProjectTask[] {
 }
 
 export async function createTask(task: ProjectTask): Promise<ProjectTask> {
-  return queueTaskWrite(() => {
-    const tasks = getTasks();
-    saveTasks([...tasks, task]);
-    return task;
-  });
+  return queueTaskWrite(() =>
+    withFileLock(tasksFilePath, () => {
+      const tasks = getTasks();
+      saveTasks([...tasks, task]);
+      return task;
+    })
+  );
 }
 
 export async function updateTask(
@@ -69,26 +74,54 @@ export async function updateTask(
   taskId: string,
   changes: Partial<Omit<ProjectTask, "id" | "projectId" | "createdAt">>
 ): Promise<ProjectTask | null> {
-  return queueTaskWrite(() => {
-    const tasks = getTasks();
-    const existing = tasks.find((task) => task.id === taskId && task.projectId === projectId);
-    if (!existing) return null;
-    const updated = { ...existing, ...changes, updatedAt: new Date().toISOString() };
-    const projectTasks = tasks.map((task) => (task.id === taskId ? updated : task));
-    const normalized = normalizeProjectTaskPositions(projectTasks, projectId);
-    saveTasks([...projectTasks.filter((task) => task.projectId !== projectId), ...normalized]);
-    return updated;
-  });
+  return queueTaskWrite(() =>
+    withFileLock(tasksFilePath, () => {
+      const tasks = getTasks();
+      const existing = tasks.find((task) => task.id === taskId && task.projectId === projectId);
+      if (!existing) return null;
+      const updated = { ...existing, ...changes, updatedAt: new Date().toISOString() };
+      const projectTasks = tasks.filter(
+        (task) => task.projectId === projectId && task.id !== taskId
+      );
+      const destinationTasks = projectTasks
+        .filter((task) => task.status === updated.status)
+        .sort((a, b) => a.position - b.position);
+      const requestedPosition =
+        changes.position ??
+        (existing.status === updated.status ? existing.position : destinationTasks.length);
+      const destinationPosition = Math.max(0, Math.min(requestedPosition, destinationTasks.length));
+      destinationTasks.splice(destinationPosition, 0, updated);
+
+      const reorderedProjectTasks = TASK_STATUSES.flatMap((status) => {
+        const statusTasks =
+          status === updated.status
+            ? destinationTasks
+            : projectTasks
+                .filter((task) => task.status === status)
+                .sort((a, b) => a.position - b.position);
+        return statusTasks.map((task, position) => ({ ...task, position }));
+      });
+      saveTasks([
+        ...tasks.filter((task) => task.projectId !== projectId),
+        ...reorderedProjectTasks,
+      ]);
+      return reorderedProjectTasks.find((task) => task.id === taskId) ?? null;
+    })
+  );
 }
 
 export async function deleteTask(projectId: string, taskId: string): Promise<boolean> {
-  return queueTaskWrite(() => {
-    const tasks = getTasks();
-    const remaining = tasks.filter((task) => !(task.id === taskId && task.projectId === projectId));
-    if (remaining.length === tasks.length) return false;
-    saveTasks(remaining);
-    return true;
-  });
+  return queueTaskWrite(() =>
+    withFileLock(tasksFilePath, () => {
+      const tasks = getTasks();
+      const remaining = tasks.filter(
+        (task) => !(task.id === taskId && task.projectId === projectId)
+      );
+      if (remaining.length === tasks.length) return false;
+      saveTasks(remaining);
+      return true;
+    })
+  );
 }
 
 export function normalizeProjectTaskPositions(

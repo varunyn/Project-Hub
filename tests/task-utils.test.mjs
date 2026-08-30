@@ -115,3 +115,89 @@ test("moving a task normalizes positions within each status column", async () =>
     rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+test("moving a task to an occupied position inserts it before the task already there", async () => {
+  const dataDir = mkdtempSync(path.join(tmpdir(), "project-hub-tasks-"));
+  try {
+    const store = loadTaskStore(dataDir);
+    await store.createTask(task({ id: "first", position: 0 }));
+    await store.createTask(task({ id: "second", position: 1 }));
+    await store.createTask(task({ id: "third", position: 2 }));
+
+    const moved = await store.updateTask("project-a", "third", { position: 1 });
+
+    assert.equal(moved.position, 1);
+
+    assert.deepEqual(
+      store.getProjectTasks("project-a").map((item) => [item.id, item.position]),
+      [
+        ["first", 0],
+        ["third", 1],
+        ["second", 2],
+      ]
+    );
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("moving a task across statuses reorders both source and destination columns", async () => {
+  const dataDir = mkdtempSync(path.join(tmpdir(), "project-hub-tasks-"));
+  try {
+    const store = loadTaskStore(dataDir);
+    await store.createTask(task({ id: "todo-1", position: 0 }));
+    await store.createTask(task({ id: "todo-2", position: 1 }));
+    await store.createTask(task({ id: "done-1", status: "done", position: 0 }));
+
+    await store.updateTask("project-a", "todo-1", { status: "done", position: 1 });
+
+    assert.deepEqual(
+      store.getProjectTasks("project-a").map((item) => [item.id, item.status, item.position]),
+      [
+        ["todo-2", "todo", 0],
+        ["done-1", "done", 0],
+        ["todo-1", "done", 1],
+      ]
+    );
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("out-of-bounds positions are clamped without disturbing other projects", async () => {
+  const dataDir = mkdtempSync(path.join(tmpdir(), "project-hub-tasks-"));
+  try {
+    const store = loadTaskStore(dataDir);
+    await store.createTask(task({ id: "a-1", position: 0 }));
+    await store.createTask(task({ id: "a-2", position: 1 }));
+    await store.createTask(task({ id: "b-1", projectId: "project-b", position: 0 }));
+    await store.createTask(task({ id: "b-2", projectId: "project-b", position: 1 }));
+
+    await store.updateTask("project-a", "a-1", { position: 99 });
+    assert.deepEqual(
+      store.getProjectTasks("project-a").map((item) => [item.id, item.position]),
+      [
+        ["a-2", 0],
+        ["a-1", 1],
+      ]
+    );
+
+    await store.updateTask("project-a", "a-1", { position: -5 });
+    assert.deepEqual(
+      store.getProjectTasks("project-a").map((item) => [item.id, item.position]),
+      [
+        ["a-1", 0],
+        ["a-2", 1],
+      ]
+    );
+    assert.deepEqual(
+      store.getProjectTasks("project-b").map((item) => [item.id, item.position]),
+      [
+        ["b-1", 0],
+        ["b-2", 1],
+      ]
+    );
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
