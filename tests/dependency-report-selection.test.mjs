@@ -115,3 +115,21 @@ test("project filtering returns only the requested project", () => {
   assert.equal(filtered.projects[0].path, streamlitPath);
   assert.equal(filtered.totals.updates, 1);
 });
+
+test("project filtering includes nested package roots", () => {
+  const { filterDependencyReportByProject } = loadSelectionModule();
+  const projectPath = "/projects/reader-pointe-react";
+  const filtered = filterDependencyReportByProject(
+    report([
+      project(`${projectPath}/api`, "1.0.0"),
+      project(`${projectPath}/frontend`, "2.0.0"),
+      project("/projects/other", "3.0.0"),
+    ], "scoped.json"),
+    projectPath
+  );
+
+  assert.equal(filtered.status, "ready");
+  assert.equal(filtered.projects.length, 2);
+  assert.equal(filtered.totals.updates, 2);
+  assert.ok(filtered.projects.every((item) => item.path.startsWith(`${projectPath}/`)));
+});

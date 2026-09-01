@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-01
+
+### Fixed
+
+- Project-scoped dependency reports now include dependency entries from nested package directories instead of appearing empty.
+
 ## [0.4.0] - 2026-09-01
 
 ### Added

@@ -49,7 +49,10 @@ export function filterDependencyReportByProject(
 ): DependencyUpdatesReport {
   const normalizedPath = projectPath.replace(/\/+$/, "");
   const projects = report.projects.filter(
-    (project) => project.path.replace(/\/+$/, "") === normalizedPath
+    (project) => {
+      const candidatePath = project.path.replace(/\/+$/, "");
+      return candidatePath === normalizedPath || candidatePath.startsWith(`${normalizedPath}/`);
+    }
   );
 
   return {
