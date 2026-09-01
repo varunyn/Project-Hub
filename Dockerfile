@@ -32,14 +32,3 @@ EXPOSE 3080
 ENV PORT=3080
 ENV HOSTNAME=0.0.0.0
 CMD ["node", "server.js"]
-
-# ---- MCP Server ----
-FROM ghcr.io/astral-sh/uv:python3.11-alpine AS mcp
-WORKDIR /app
-COPY mcp/pyproject.toml mcp/uv.lock ./mcp/
-RUN uv sync --directory mcp --frozen
-COPY mcp ./mcp
-EXPOSE 8000
-ENV PROJECT_DATA_DIR=/app-data
-ENV DEPENDENCY_REPORT_OUTPUT_DIR=/app-data/dependency-reports
-CMD ["uv", "run", "--directory", "mcp", "fastmcp", "run", "server.py:mcp", "--transport", "http", "--host", "0.0.0.0", "--port", "8000"]

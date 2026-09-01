@@ -109,14 +109,6 @@ docker compose up -d
 
 Open [http://localhost:3080](http://localhost:3080).
 
-To also run the optional MCP HTTP service:
-
-```bash
-docker compose --profile mcp up -d --build
-```
-
-The UI remains at [http://localhost:3080](http://localhost:3080), and MCP is exposed at `http://localhost:8070/mcp` by default. Set `MCP_HTTP_PORT` in `.env` to use a different host port.
-
 > [!IMPORTANT]
 > Docker cannot open macOS Finder directly. In Docker, use **Copy path** or configure path mapping with `HOST_PROJECTS_PATH` and `CONTAINER_PROJECTS_ROOT`.
 

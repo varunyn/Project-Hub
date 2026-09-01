@@ -2,6 +2,7 @@
 
 ### Changed
 
+- Removed the optional MCP service and its Docker configuration; use the Project Hub web app directly for project and task management.
 - Upgraded the app to Next.js 16.3.0 and switched the default font to a system stack so builds do not depend on Google Fonts being reachable.
 
 ### Fixed

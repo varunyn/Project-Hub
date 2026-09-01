@@ -12,7 +12,6 @@
       "!**/.next",
       "!**/out",
       "!**/build",
-      "!**/mcp",
       "!**/app/data",
       "!**/*.config.js",
       "!**/*.config.mjs",
