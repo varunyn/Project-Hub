@@ -2,11 +2,13 @@
 
 ### Changed
 
+- Dependency report runs are now persisted as server-managed background jobs with shared status and duplicate-run protection across navigation and refreshes.
 - Removed the optional MCP service and its Docker configuration; use the Project Hub web app directly for project and task management.
 - Upgraded the app to Next.js 16.3.0 and switched the default font to a system stack so builds do not depend on Google Fonts being reachable.
 
 ### Fixed
 
+- Dependency reports now retry interrupted downloads and record individual enrichment failures instead of failing the complete report.
 - Production builds now complete with Turbopack while runtime filesystem scans remain excluded from standalone tracing.
 
 ## [0.2.0] - 2026-07-30

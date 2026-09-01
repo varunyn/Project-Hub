@@ -1053,7 +1053,7 @@ function applyProjectFilters({
 }
 
 export default function DependencyUpdatesDashboard() {
-  const { report, loading, error, refetch, runReport } = useDependencyUpdates();
+  const { report, loading, error, refetch, runReport, status, running } = useDependencyUpdates();
   const [activeTab, setActiveTab] = useState<ActiveTab>("projects");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1062,9 +1062,6 @@ export default function DependencyUpdatesDashboard() {
   const [priority, setPriority] = useState(ALL);
   const [updateType, setUpdateType] = useState(ALL);
   const [breakingOnly, setBreakingOnly] = useState(false);
-  const [runningReport, setRunningReport] = useState(false);
-  const [runMessage, setRunMessage] = useState<string | null>(null);
-  const [runError, setRunError] = useState<string | null>(null);
 
   const allUpdates = useMemo(
     () => (report?.projects ?? []).flatMap((project) => project.updates),
@@ -1162,22 +1159,12 @@ export default function DependencyUpdatesDashboard() {
   }
 
   async function handleRunReport() {
-    setRunningReport(true);
-    setRunError(null);
-    setRunMessage(null);
     try {
-      const response = await runReport();
-      setRunMessage(
-        response.result.ok
-          ? "Dependency report generated."
-          : response.result.stderr || "Dependency report failed."
-      );
+      await runReport();
     } catch (runErrorValue) {
-      setRunError(
-        runErrorValue instanceof Error ? runErrorValue.message : "Failed to run dependency report."
-      );
-    } finally {
-      setRunningReport(false);
+      // The shared status endpoint owns the durable job error; this catches
+      // request failures before a job could be created.
+      console.error(runErrorValue);
     }
   }
 
@@ -1189,7 +1176,7 @@ export default function DependencyUpdatesDashboard() {
           onExport={exportReport}
           onRunReport={handleRunReport}
           report={report}
-          running={runningReport}
+          running={running}
         />
         <LoadingState />
       </div>
@@ -1203,7 +1190,7 @@ export default function DependencyUpdatesDashboard() {
         onExport={exportReport}
         onRunReport={handleRunReport}
         report={report}
-        running={runningReport}
+        running={running}
       />
 
       {error && (
@@ -1212,15 +1199,22 @@ export default function DependencyUpdatesDashboard() {
         </div>
       )}
 
-      {runMessage && (
+      {running && (
         <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          {runMessage}
+          Dependency report is running{status?.scope ? ` for ${status.scope}` : ""}. This page will
+          update when it finishes.
         </div>
       )}
 
-      {runError && (
+      {status?.status === "succeeded" && (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Dependency report completed. The latest report is shown below.
+        </div>
+      )}
+
+      {(status?.status === "failed" || status?.status === "interrupted") && status.error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {runError}
+          {status.error}
         </div>
       )}
 

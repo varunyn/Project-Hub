@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import html
+import http.client
 import json
 import os
 import re
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -19,6 +21,8 @@ MAX_RELEASE_NOTES_CHARS = 6000
 GITHUB_RELEASE_PAGES = 3
 DEFAULT_CACHE_TTL = timedelta(hours=24)
 DEFAULT_MAX_WORKERS = 4
+INCOMPLETE_READ_ATTEMPTS = 3
+INCOMPLETE_READ_RETRY_DELAY_SECONDS = 0.5
 
 
 class TTLCache:
@@ -64,23 +68,38 @@ def fetch_release_info(update: DependencyUpdate, fetch_json=None) -> ReleaseInfo
     return ReleaseInfo()
 
 
+def _read_url(request: urllib.request.Request, timeout: int) -> bytes:
+    """Read an HTTP response, retrying only truncated transfers.
+
+    Registry, GitHub, and local AI endpoints occasionally close a large response
+    before its advertised content length has arrived. Retrying the whole request
+    is safer than accepting a partial JSON or release-note payload.
+    """
+    for attempt in range(INCOMPLETE_READ_ATTEMPTS):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.read()
+        except http.client.IncompleteRead:
+            if attempt == INCOMPLETE_READ_ATTEMPTS - 1:
+                raise
+            time.sleep(INCOMPLETE_READ_RETRY_DELAY_SECONDS * (2**attempt))
+    raise AssertionError("Incomplete-read retry loop exited unexpectedly")
+
+
 def fetch_json_url(url: str) -> dict:
     request = urllib.request.Request(url, headers={"Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8"))
+    return json.loads(_read_url(request, timeout=30).decode("utf-8"))
 
 
 def fetch_release_text(url: str, max_chars: int = MAX_RELEASE_NOTES_CHARS) -> str:
     request = urllib.request.Request(url, headers={"Accept": "text/html,text/plain,application/json"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        raw = response.read().decode("utf-8", errors="replace")
+    raw = _read_url(request, timeout=30).decode("utf-8", errors="replace")
     return _sanitize_text(_strip_markup(raw), max_chars)
 
 
 def fetch_raw_text(url: str, max_chars: int = MAX_RELEASE_NOTES_CHARS) -> str:
     request = urllib.request.Request(url, headers={"Accept": "text/plain"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        raw = response.read().decode("utf-8", errors="replace")
+    raw = _read_url(request, timeout=30).decode("utf-8", errors="replace")
     return _sanitize_text(raw, max_chars)
 
 
@@ -162,12 +181,26 @@ def enrich_results_with_release_intelligence(
                 cache.put(metadata_key, release_info)
             update.release_info = release_info
             _resolve_changelog(update, release_info, release_text_fetcher, cache)
-        except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError, ValueError) as exc:
+        except (
+            OSError,
+            http.client.IncompleteRead,
+            urllib.error.URLError,
+            json.JSONDecodeError,
+            KeyError,
+            ValueError,
+        ) as exc:
             update.release_info = ReleaseInfo(source="none", source_status="error", source_reason=str(exc))
         if config.ai.enabled and update.release_info is not None:
             try:
                 _apply_ai_summary(update.release_info, ai_summarizer(update, update.release_info, config.ai))
-            except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError, ValueError) as exc:
+            except (
+                OSError,
+                http.client.IncompleteRead,
+                urllib.error.URLError,
+                json.JSONDecodeError,
+                KeyError,
+                ValueError,
+            ) as exc:
                 update.release_info.ai_summary = f"AI summary unavailable: {exc}"
 
     with ThreadPoolExecutor(max_workers=DEFAULT_MAX_WORKERS) as executor:
@@ -207,7 +240,7 @@ def _resolve_changelog(
             raw_url = f"https://raw.githubusercontent.com/{github_repo}/{urllib.parse.quote(tag)}/CHANGELOG.md"
             try:
                 text = _cached_text(raw_url, fetch_raw_text, cache)
-            except (OSError, urllib.error.URLError, UnicodeError, ValueError):
+            except (OSError, http.client.IncompleteRead, urllib.error.URLError, UnicodeError, ValueError):
                 continue
             if text:
                 release_info.source = "github_raw"
@@ -223,7 +256,7 @@ def _resolve_changelog(
     if release_info.changelog_url:
         try:
             text = _cached_text(release_info.changelog_url, release_text_fetcher, cache)
-        except (OSError, urllib.error.URLError, UnicodeError, ValueError) as exc:
+        except (OSError, http.client.IncompleteRead, urllib.error.URLError, UnicodeError, ValueError) as exc:
             release_info.source_reason = str(exc)
         else:
             release_info.source = "package_metadata"
@@ -262,15 +295,14 @@ def _github_releases(repo: str, cache: TTLCache) -> list[dict]:
         url = f"https://api.github.com/repos/{repo}/releases?per_page=100&page={page}"
         request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                payload = json.loads(response.read().decode("utf-8"))
+            payload = json.loads(_read_url(request, timeout=30).decode("utf-8"))
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
                 raise GitHubLookupError("GitHub repository or releases not found", "not_found") from exc
             if exc.code in (403, 429):
                 raise GitHubLookupError("GitHub API rate limited or forbidden", "rate_limited") from exc
             raise GitHubLookupError(f"GitHub releases request failed with HTTP {exc.code}", "error") from exc
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, http.client.IncompleteRead, json.JSONDecodeError) as exc:
             raise GitHubLookupError(f"GitHub releases request failed: {exc}", "error") from exc
         if not isinstance(payload, list):
             raise GitHubLookupError("GitHub releases response was not a list", "malformed")
@@ -496,8 +528,7 @@ def summarize_update_with_ai(update: DependencyUpdate, release_info: ReleaseInfo
     elif local_endpoint:
         headers["Authorization"] = "Bearer ollama"
     request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-    with urllib.request.urlopen(request, timeout=60) as response:
-        data = json.loads(response.read().decode("utf-8"))
+    data = json.loads(_read_url(request, timeout=60).decode("utf-8"))
     choices = data.get("choices", [])
     if not choices:
         return ""

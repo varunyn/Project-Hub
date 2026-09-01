@@ -1,3 +1,4 @@
+import http.client
 import subprocess
 import tempfile
 import unittest
@@ -460,6 +461,55 @@ class ReleaseIntelligenceTests(unittest.TestCase):
             summary = dependency_reporter.summarize_update_with_ai(update, release_info, ai_config)
 
         self.assertEqual(summary, "Review routing changes.")
+
+    def test_fetch_json_url_retries_a_truncated_response(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self):
+                return b'{"name":"react"}'
+
+        with (
+            patch(
+                "dependency_reporter.urllib.request.urlopen",
+                side_effect=[http.client.IncompleteRead(b"partial", 10), FakeResponse()],
+            ) as urlopen,
+            patch("dependency_reporter_lib.release_intelligence.time.sleep") as sleep,
+        ):
+            metadata = dependency_reporter.fetch_json_url("https://registry.example/react")
+
+        self.assertEqual(metadata, {"name": "react"})
+        self.assertEqual(urlopen.call_count, 2)
+        sleep.assert_called_once_with(0.5)
+
+    def test_enrichment_records_an_unrecoverable_truncated_response_as_a_warning(self):
+        project = dependency_reporter.Project(Path("/tmp/app"), ["node"], ["package.json"])
+        update = dependency_reporter.DependencyUpdate(
+            "node", "react", "18.2.0", "18.3.1", "19.1.0", "dependencies"
+        )
+        result = dependency_reporter.ProjectResult(project=project, updates=[update])
+        config = dependency_reporter.Config(
+            scan_roots=[Path("/tmp")],
+            output_dir=Path("outputs"),
+            ignore_dirs=set(),
+            release_intelligence=dependency_reporter.ReleaseIntelligenceConfig(enabled=True),
+            ai=dependency_reporter.AIConfig(enabled=False),
+        )
+
+        dependency_reporter.enrich_results_with_release_intelligence(
+            [result],
+            config,
+            metadata_fetcher=lambda dependency_update: (_ for _ in ()).throw(
+                http.client.IncompleteRead(b"partial", 10)
+            ),
+        )
+
+        self.assertEqual(update.release_info.source_status, "error")
+        self.assertIn("IncompleteRead", update.release_info.source_reason)
 
 
 class RunCommandTests(unittest.TestCase):

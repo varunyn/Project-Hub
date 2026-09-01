@@ -247,24 +247,29 @@ function DependencyPreviewTable({ updates }: { updates: RankedUpdate[] }) {
 
 function Messages({
   report,
-  runError,
-  runMessage,
+  status,
 }: {
   report: DependencyUpdatesReport | null;
-  runError: string | null;
-  runMessage: string | null;
+  status: { status: string; scope: string | null; error: string | null } | null;
 }) {
   return (
     <>
-      {runMessage && (
+      {status?.status === "running" && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
-          {runMessage}
+          Dependency report is running{status.scope ? ` for ${status.scope}` : ""}. This panel will
+          update when it finishes.
         </div>
       )}
 
-      {runError && (
+      {status?.status === "succeeded" && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+          Dependency report completed. The latest results are shown below.
+        </div>
+      )}
+
+      {(status?.status === "failed" || status?.status === "interrupted") && status.error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-          {runError}
+          {status.error}
         </div>
       )}
 
@@ -484,11 +489,8 @@ function ProjectDependencyContent({
 }
 
 export default function ProjectDependencyUpdates({ projectPath }: { projectPath: string }) {
-  const { report, loading, error, refetch, runReport } = useDependencyUpdates();
+  const { report, loading, error, refetch, runReport, status, running } = useDependencyUpdates();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [runningReport, setRunningReport] = useState(false);
-  const [runMessage, setRunMessage] = useState<string | null>(null);
-  const [runError, setRunError] = useState<string | null>(null);
 
   const matchingProjects = useMemo(() => {
     if (!(report && projectPath)) return [];
@@ -529,22 +531,10 @@ export default function ProjectDependencyUpdates({ projectPath }: { projectPath:
   );
 
   const handleRunReport = async () => {
-    setRunningReport(true);
-    setRunMessage(null);
-    setRunError(null);
     try {
-      const response = await runReport(projectPath);
-      setRunMessage(
-        response.result.ok
-          ? "Dependency report generated."
-          : response.result.stderr || "Report failed."
-      );
+      await runReport(projectPath);
     } catch (runErrorValue) {
-      setRunError(
-        runErrorValue instanceof Error ? runErrorValue.message : "Failed to run dependency report."
-      );
-    } finally {
-      setRunningReport(false);
+      console.error(runErrorValue);
     }
   };
 
@@ -568,11 +558,11 @@ export default function ProjectDependencyUpdates({ projectPath }: { projectPath:
               {report?.canRunReporter ? (
                 <button
                   className="inline-flex min-h-9 items-center justify-center rounded-lg bg-[oklch(28%_0.08_265)] px-3 py-1.5 text-sm font-semibold text-[oklch(98%_0.006_250)] shadow-sm transition-colors hover:bg-[oklch(34%_0.1_265)] focus:outline-none focus:ring-2 focus:ring-[oklch(72%_0.14_250)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={runningReport}
+                  disabled={running}
                   onClick={handleRunReport}
                   type="button"
                 >
-                  {runningReport ? "Running" : "Run report"}
+                  {running ? "Running" : "Run report"}
                 </button>
               ) : (
                 <button
@@ -629,7 +619,7 @@ export default function ProjectDependencyUpdates({ projectPath }: { projectPath:
             </div>
           )}
 
-          <Messages report={report} runError={runError} runMessage={runMessage} />
+          <Messages report={report} status={status} />
 
           <ProjectDependencyContent
             error={error}

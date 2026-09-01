@@ -32,6 +32,7 @@ logs.txt
 # local project data (user-specific, do not commit)
 app/data/projects*.json
 app/data/tasks*.json
+app/data/dependency-report-job.json
 
 # debug
 npm-debug.log*
