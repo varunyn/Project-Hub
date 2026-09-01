@@ -41,6 +41,7 @@ Project Hub is a local Quest dashboard for tracking development projects across 
 - **Git activity**: Show recent commits from real git repositories, with optional seeded demo activity for screenshots.
 - **Optional GitHub issue sync**: Import repository issues into a project Kanban and explicitly create GitHub issues from local tasks.
 - **Docker support**: Run the app in a container with host project path mapping.
+- **Dependency health reports**: Scan real project manifests (generated `.eve` runtime snapshots are ignored), then optionally add cached AI upgrade summaries without blocking the deterministic report.
 
 ## Tech Stack
 
@@ -97,8 +98,12 @@ HOST_PROJECTS_PATH=/path/to/your/projects
 PROJECT_DATA_PATH=./app/data
 DEPENDENCY_REPORT_RUN_ENABLED=true
 DEPENDENCY_REPORT_COMMAND=python3 /app/tools/dependency-reporter/dependency_reporter.py --config "<generated from projects.json>"
+# Optional AI enrichment; deterministic dependency and release data is always available first.
+DEPENDENCY_REPORT_AI_ENABLED=false
+# Keep the cache on the persistent Docker data mount.
+DEPENDENCY_REPORT_CACHE_PATH=/app-data/dependency-reports/dependency-report-cache.json
 # Optional: enables GitHub issue import and task-to-issue creation.
-GITHUB_TOKEN=github_pat_...
+GITHUB_TOKEN=
 ```
 
 Start the container:
@@ -129,6 +134,10 @@ Inside Docker:
 - The dependency reporter is bundled with the app at `/app/tools/dependency-reporter`
 - Report JSON is written to `/app-data/dependency-reports`
 - `PROJECT_DATA_PATH` is mounted at `/app-data`
+
+The report is staged: scanning and release lookup write a readable deterministic report before optional AI enrichment begins. The app shows scanning, release lookup, AI enrichment progress, and final metrics. AI is optional and failures remain nonfatal enrichment warnings; disabling it still performs dependency discovery and release intelligence. Equivalent upgrades are analyzed once and reuse the persistent cache across runs, while the package cap applies to unique candidates. Provider-reported prompt, completion, reasoning, and total token fields are shown when available (otherwise they remain unavailable); full prompts and release bodies are not recorded as telemetry.
+
+For dependency summaries, a fast non-reasoning model is generally the best fit. Keep the model and endpoint deployment-owned; optional completion and low reasoning settings are sent only when compatible endpoints support them, with fallback behavior for endpoints that do not.
 
 You can still generate a report from the host Mac if needed:
 

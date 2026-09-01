@@ -88,12 +88,18 @@ Release intelligence is optional for standalone reporter runs and disabled by de
 
 GitHub release matching supports plain, `v`-prefixed, and `release-`-prefixed tags. Stable releases across the `(current, latest]` range are aggregated and ordered by version. Prereleases are excluded from range summaries. GitHub API failures, including rate limits, are recorded as source diagnostics and do not prevent fallback resolution.
 
-Release lookups use a process-local, thread-safe cache with a 24-hour TTL and up to four concurrent package enrichments. The cache is discarded when the reporter process exits. GitHub requests are anonymous in v1; a live GitHub token is not required.
+Release lookups use a bounded, thread-safe cache with a 168-hour TTL and up to 500 entries by default, persisted atomically when `cache_path` is configured. Up to four package enrichments run concurrently. GitHub requests are anonymous in v1; a live GitHub token is not required.
+
+The same local cache stores successful AI summaries. An entry is reused only when the ecosystem, package, version transition, release-evidence fingerprint, configured model, and prompt schema match; changing any of those inputs causes a miss. Transport errors, malformed responses, missing evidence, and partial results are not cached as successful suggestions.
 
 ```yaml
 release_intelligence:
   enabled: true
   max_packages: 25
+  evidence_max_chars: 2000
+  cache_path: outputs/dependency-report-cache.json
+  cache_ttl_hours: 168
+  cache_max_entries: 500
 ```
 
 The deterministic metadata includes release dates, available homepage, repository, and changelog links, plus a bounded release-note excerpt. JSON `release_info` objects also include:
@@ -130,7 +136,9 @@ The live test is excluded unless `RUN_LIVE_CHANGELOG_TESTS=1` is set, so ordinar
 
 ## Optional AI Summaries
 
-AI summaries are optional and use an OpenAI-compatible `/chat/completions` endpoint. Keep `ai.enabled: false` to generate release metadata without model calls.
+AI summaries are optional enrichment and use an OpenAI-compatible `/chat/completions` endpoint. The deterministic dependency and release report is written first, so AI latency does not hide the useful result. Keep `ai.enabled: false` to generate release metadata without model calls. Equivalent upgrades share one cached analysis across legitimate projects and runs; `max_packages` applies to unique candidates. A failed or timed-out request leaves the report readable and adds a warning rather than failing the dependency scan.
+
+Use a fast non-reasoning model for this short structured recommendation task when selecting a deployment. The model and endpoint remain deployment-owned; Project Hub does not replace them. Optional completion and reasoning parameters are sent when supported by the configured endpoint and may fall back for compatible endpoints that reject them.
 
 Ollama example:
 
@@ -160,6 +168,10 @@ ai:
   base_url: https://api.openai.com/v1
   model: gpt-4.1-mini
   api_key_env: OPENAI_API_KEY
+  completion_tokens: 300
+  prompt_schema: dependency-summary-v1
+  # Optional; only send when the endpoint supports it.
+  # reasoning_effort: low
 ```
 
 If AI is enabled, the prompt asks the model to use only fetched metadata and release-note excerpts, avoid inventing release notes, and return structured JSON with:
@@ -173,3 +185,5 @@ If AI is enabled, the prompt asks the model to use only fetched metadata and rel
 - `summary`
 
 Structured values are rendered in `Upgrade Recommendations`; plain text fallback responses are rendered in `Upgrade Notes`.
+
+The app exposes the enrichment state (disabled, skipped, pending, in progress, partial, or completed) and per-run progress/metrics, including unique candidates, cache hits, requests, failures, elapsed time, and provider-reported prompt, completion, reasoning, and total token counts. Missing usage fields are shown as unavailable rather than estimated. Local metrics intentionally omit full prompts, model responses, authorization data, and release-note bodies.

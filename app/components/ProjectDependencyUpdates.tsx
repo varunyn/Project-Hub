@@ -8,6 +8,14 @@ import type {
   DependencyUpdate,
   DependencyUpdatesReport,
 } from "../lib/dependencyReport";
+import {
+  dependencyEnrichmentLabel,
+  dependencyPhaseLabel,
+  dependencyProgressLabel,
+  enrichmentMetricSummary,
+  formatMetric,
+} from "../lib/dependencyReportUi";
+import { DependencyReportRunOptions } from "./DependencyReportRunOptions";
 
 type UpdateType = "Major" | "Minor" | "Patch" | "Unknown";
 type RiskLevel = "High" | "Medium" | "Low" | "Unknown";
@@ -250,20 +258,53 @@ function Messages({
   status,
 }: {
   report: DependencyUpdatesReport | null;
-  status: { status: string; scope: string | null; error: string | null } | null;
+  status: {
+    status: string;
+    scope: string | null;
+    error: string | null;
+    aiEnabled?: boolean;
+    phase?: "scanning" | "release_lookup" | "ai_enrichment" | "finalizing" | null;
+    completed?: number;
+    total?: number;
+  } | null;
 }) {
   return (
     <>
       {status?.status === "running" && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
-          Dependency report is running{status.scope ? ` for ${status.scope}` : ""}. This panel will
-          update when it finishes.
+          {dependencyPhaseLabel(status.phase)}
+          {status.scope ? ` for ${status.scope}` : ""}.{" "}
+          {dependencyProgressLabel(status.phase, status.completed, status.total)
+            ? `${dependencyProgressLabel(status.phase, status.completed, status.total)}. `
+            : ""}
+          {status.aiEnabled ? "AI suggestions are included." : "AI suggestions are not included."}
+        </div>
+      )}
+
+      {report?.enrichmentState && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-[oklch(42%_0.06_260)]">
+          <span>
+            {dependencyEnrichmentLabel(report.enrichmentState, status?.aiEnabled ?? false)}
+          </span>
+          {enrichmentMetricSummary(report.enrichmentMetrics).map((metric) => (
+            <span className="font-normal text-[oklch(52%_0.055_260)]" key={metric}>
+              {metric}
+            </span>
+          ))}
+          <span className="font-normal text-[oklch(52%_0.055_260)]">
+            Prompt {formatMetric(report.enrichmentMetrics.promptTokens)} · Completion{" "}
+            {formatMetric(report.enrichmentMetrics.completionTokens)} · Reasoning{" "}
+            {formatMetric(report.enrichmentMetrics.reasoningTokens)}
+          </span>
         </div>
       )}
 
       {status?.status === "succeeded" && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-          Dependency report completed. The latest results are shown below.
+          Dependency report completed. The latest results are shown below
+          {report?.enrichmentState
+            ? ` (${dependencyEnrichmentLabel(report.enrichmentState, status.aiEnabled)}).`
+            : "."}
         </div>
       )}
 
@@ -374,6 +415,11 @@ function DependencyDrawer({
                   {(release.aiSuggestedAction || release.aiSummary) && (
                     <p className="mt-2 text-sm leading-6 text-slate-700">
                       {release.aiSuggestedAction ?? release.aiSummary}
+                    </p>
+                  )}
+                  {release.aiWarning && (
+                    <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-800">
+                      AI enrichment warning: {release.aiWarning}
                     </p>
                   )}
                 </article>
@@ -489,8 +535,17 @@ function ProjectDependencyContent({
 }
 
 export default function ProjectDependencyUpdates({ projectPath }: { projectPath: string }) {
-  const { report, loading, error, refetch, runReport, status, running } =
-    useDependencyUpdates(projectPath);
+  const {
+    report,
+    loading,
+    error,
+    refetch,
+    runReport,
+    status,
+    running,
+    aiPreferences,
+    setAiEnabled,
+  } = useDependencyUpdates(projectPath);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const matchingProjects = useMemo(() => {
@@ -505,23 +560,11 @@ export default function ProjectDependencyUpdates({ projectPath }: { projectPath:
 
   const rankedUpdates = useMemo(() => createRankedUpdates(matchingProjects), [matchingProjects]);
   const typeCounts = useMemo(
-    () => ({
-      Major: 0,
-      Minor: 0,
-      Patch: 0,
-      Unknown: 0,
-      ...countByValue(rankedUpdates, (item) => item.type),
-    }),
+    () => countByValue(rankedUpdates, (item) => item.type),
     [rankedUpdates]
   );
   const riskCounts = useMemo(
-    () => ({
-      High: 0,
-      Medium: 0,
-      Low: 0,
-      Unknown: 0,
-      ...countByValue(rankedUpdates, (item) => item.risk),
-    }),
+    () => countByValue(rankedUpdates, (item) => item.risk),
     [rankedUpdates]
   );
 
@@ -533,7 +576,7 @@ export default function ProjectDependencyUpdates({ projectPath }: { projectPath:
 
   const handleRunReport = async () => {
     try {
-      await runReport(projectPath);
+      await runReport(projectPath, aiPreferences?.aiEnabled);
     } catch (runErrorValue) {
       console.error(runErrorValue);
     }
@@ -556,6 +599,12 @@ export default function ProjectDependencyUpdates({ projectPath }: { projectPath:
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <DependencyReportRunOptions
+                onPreferenceChange={setAiEnabled}
+                preferences={aiPreferences}
+                running={running}
+                status={status}
+              />
               {report?.canRunReporter ? (
                 <button
                   className="inline-flex min-h-9 items-center justify-center rounded-lg bg-[oklch(28%_0.08_265)] px-3 py-1.5 text-sm font-semibold text-[oklch(98%_0.006_250)] shadow-sm transition-colors hover:bg-[oklch(34%_0.1_265)] focus:outline-none focus:ring-2 focus:ring-[oklch(72%_0.14_250)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
@@ -591,31 +640,35 @@ export default function ProjectDependencyUpdates({ projectPath }: { projectPath:
                 <SummaryChip
                   className={updateTypeTone("Major")}
                   label="Major"
-                  value={typeCounts.Major}
+                  value={typeCounts.Major ?? 0}
                 />
                 <SummaryChip
                   className={updateTypeTone("Minor")}
                   label="Minor"
-                  value={typeCounts.Minor}
+                  value={typeCounts.Minor ?? 0}
                 />
                 <SummaryChip
                   className={updateTypeTone("Patch")}
                   label="Patch"
-                  value={typeCounts.Patch}
+                  value={typeCounts.Patch ?? 0}
                 />
               </div>
               <div className="flex flex-wrap gap-2">
                 <SummaryChip
                   className={riskTone("High")}
                   label="High Risk"
-                  value={riskCounts.High}
+                  value={riskCounts.High ?? 0}
                 />
                 <SummaryChip
                   className={riskTone("Medium")}
                   label="Medium Risk"
-                  value={riskCounts.Medium}
+                  value={riskCounts.Medium ?? 0}
                 />
-                <SummaryChip className={riskTone("Low")} label="Low Risk" value={riskCounts.Low} />
+                <SummaryChip
+                  className={riskTone("Low")}
+                  label="Low Risk"
+                  value={riskCounts.Low ?? 0}
+                />
               </div>
             </div>
           )}

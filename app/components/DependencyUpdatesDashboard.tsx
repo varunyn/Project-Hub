@@ -7,6 +7,15 @@ import type {
   DependencyUpdate,
   DependencyUpdatesReport,
 } from "../lib/dependencyReport";
+import {
+  dependencyEnrichmentLabel,
+  dependencyPhaseLabel,
+  dependencyProgressLabel,
+  enrichmentMetricSummary,
+  formatMetric,
+} from "../lib/dependencyReportUi";
+import type { DependencyReportJobStatus } from "../lib/dependencyUpdatesApi";
+import { DependencyReportRunOptions } from "./DependencyReportRunOptions";
 
 const ALL = "all";
 
@@ -269,12 +278,18 @@ function PageHeader({
   report,
   onExport,
   onRunReport,
+  aiPreferences,
+  status,
+  onPreferenceChange,
 }: {
   loading: boolean;
   running: boolean;
   report: DependencyUpdatesReport | null;
   onExport: () => void;
   onRunReport: () => void;
+  aiPreferences: Parameters<typeof DependencyReportRunOptions>[0]["preferences"];
+  status: Parameters<typeof DependencyReportRunOptions>[0]["status"];
+  onPreferenceChange: Parameters<typeof DependencyReportRunOptions>[0]["onPreferenceChange"];
 }) {
   return (
     <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
@@ -301,6 +316,12 @@ function PageHeader({
           <Icon name="download" />
           Export report
         </button>
+        <DependencyReportRunOptions
+          onPreferenceChange={onPreferenceChange}
+          preferences={aiPreferences}
+          running={running}
+          status={status}
+        />
         <button
           className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={running}
@@ -320,11 +341,13 @@ function OverviewSummary({
   report,
   breakingCount,
   onRefresh,
+  aiEnabled,
 }: {
   loading: boolean;
   report: DependencyUpdatesReport | null;
   breakingCount: number;
   onRefresh: () => void;
+  aiEnabled: boolean;
 }) {
   const generatedLabel = report?.generatedAt
     ? `Generated ${formatDate(report.generatedAt)} from ${report.reportFileName}`
@@ -377,6 +400,22 @@ function OverviewSummary({
           {loading ? "Loading latest report" : generatedLabel}
         </p>
       </div>
+
+      {report?.enrichmentState && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-100 px-5 py-2 text-xs font-semibold text-slate-600">
+          <span>{dependencyEnrichmentLabel(report.enrichmentState, aiEnabled)}</span>
+          {enrichmentMetricSummary(report.enrichmentMetrics).map((metric) => (
+            <span className="font-normal text-slate-500" key={metric}>
+              {metric}
+            </span>
+          ))}
+          <span className="font-normal text-slate-500">
+            Prompt {formatMetric(report.enrichmentMetrics.promptTokens)} · Completion{" "}
+            {formatMetric(report.enrichmentMetrics.completionTokens)} · Reasoning{" "}
+            {formatMetric(report.enrichmentMetrics.reasoningTokens)}
+          </span>
+        </div>
+      )}
 
       <div className="grid gap-px bg-slate-200/70 md:grid-cols-3 xl:grid-cols-7">
         {metrics.map((metric) => (
@@ -973,6 +1012,11 @@ function DetailPanel({ row }: { row: RowModel | null }) {
             <Badge className="border-blue-200 bg-blue-50 text-blue-700">Beta</Badge>
           </div>
           <p className="mt-2 text-sm leading-6 text-slate-700">{suggestion}</p>
+          {release.aiWarning && (
+            <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-800">
+              AI enrichment warning: {release.aiWarning}
+            </p>
+          )}
           <div
             className="mt-3 space-y-3 border-t border-blue-100 pt-3"
             hidden={!suggestionExpanded}
@@ -1119,8 +1163,61 @@ function applyProjectFilters({
     .filter((project) => project.updates.length > 0);
 }
 
+function ReportJobMessages({
+  error,
+  report,
+  running,
+  status,
+}: {
+  error: string | null;
+  report: DependencyUpdatesReport | null;
+  running: boolean;
+  status: DependencyReportJobStatus | null;
+}) {
+  const progress = dependencyProgressLabel(status?.phase, status?.completed, status?.total);
+  return (
+    <>
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      {running && (
+        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          {dependencyPhaseLabel(status?.phase)}
+          {status?.scope ? ` for ${status.scope}` : ""}. {progress ? `${progress}. ` : ""}
+          {status?.aiEnabled ? "AI suggestions are included." : "AI suggestions are not included."}
+        </div>
+      )}
+      {status?.status === "succeeded" && (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Dependency report completed. The latest report is shown below
+          {report?.enrichmentState
+            ? ` (${dependencyEnrichmentLabel(report.enrichmentState, status.aiEnabled)}).`
+            : "."}
+        </div>
+      )}
+      {(status?.status === "failed" || status?.status === "interrupted") && status.error && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {status.error}
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function DependencyUpdatesDashboard() {
-  const { report, loading, error, refetch, runReport, status, running } = useDependencyUpdates();
+  const {
+    report,
+    loading,
+    error,
+    refetch,
+    runReport,
+    status,
+    running,
+    aiPreferences,
+    setAiEnabled,
+  } = useDependencyUpdates();
   const [activeTab, setActiveTab] = useState<ActiveTab>("projects");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1227,7 +1324,7 @@ export default function DependencyUpdatesDashboard() {
 
   async function handleRunReport() {
     try {
-      await runReport();
+      await runReport(undefined, aiPreferences?.aiEnabled);
     } catch (runErrorValue) {
       // The shared status endpoint owns the durable job error; this catches
       // request failures before a job could be created.
@@ -1244,6 +1341,9 @@ export default function DependencyUpdatesDashboard() {
           onRunReport={handleRunReport}
           report={report}
           running={running}
+          aiPreferences={aiPreferences}
+          status={status}
+          onPreferenceChange={setAiEnabled}
         />
         <LoadingState />
       </div>
@@ -1258,32 +1358,12 @@ export default function DependencyUpdatesDashboard() {
         onRunReport={handleRunReport}
         report={report}
         running={running}
+        aiPreferences={aiPreferences}
+        status={status}
+        onPreferenceChange={setAiEnabled}
       />
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {running && (
-        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          Dependency report is running{status?.scope ? ` for ${status.scope}` : ""}. This page will
-          update when it finishes.
-        </div>
-      )}
-
-      {status?.status === "succeeded" && (
-        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          Dependency report completed. The latest report is shown below.
-        </div>
-      )}
-
-      {(status?.status === "failed" || status?.status === "interrupted") && status.error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {status.error}
-        </div>
-      )}
+      <ReportJobMessages error={error} report={report} running={running} status={status} />
 
       {report?.runMode === "host" && <HostReportCommand command={report.command} />}
 
@@ -1305,6 +1385,7 @@ export default function DependencyUpdatesDashboard() {
             loading={loading}
             onRefresh={() => refetch()}
             report={report}
+            aiEnabled={status?.aiEnabled ?? aiPreferences?.aiEnabled ?? false}
           />
 
           <FiltersPanel

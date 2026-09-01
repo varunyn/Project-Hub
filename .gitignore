@@ -33,6 +33,7 @@ logs.txt
 app/data/projects*.json
 app/data/tasks*.json
 app/data/dependency-report-job.json
+app/data/dependency-report-ai-preferences.json
 
 # debug
 npm-debug.log*
@@ -67,5 +68,7 @@ skills-lock.json
 # generated dependency reporter output
 outputs/dependency-report-*.json
 outputs/dependency-report-*.md
+outputs/dependency-report-cache.json
 app/data/dependency-reports/
+app/data/dependency-report-cache.json
 .codegraph

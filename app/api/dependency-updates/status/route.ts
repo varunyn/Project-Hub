@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
+import { getDependencyReportAiAvailability } from "../../../lib/dependencyReportAiPreferences";
 import { getDependencyReportJob } from "../../../lib/dependencyReportJob";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    return NextResponse.json({ job: getDependencyReportJob() });
+    return NextResponse.json({
+      job: getDependencyReportJob(),
+      ...getDependencyReportAiAvailability(),
+    });
   } catch (error) {
     console.error("Failed to read dependency report status:", error);
     const message =

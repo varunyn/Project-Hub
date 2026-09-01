@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import html
 import http.client
 import json
@@ -17,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from .models import AIConfig, Config, DependencyUpdate, ProjectResult, ReleaseInfo
 
 
-MAX_RELEASE_NOTES_CHARS = 6000
+MAX_RELEASE_NOTES_CHARS = 2000
 GITHUB_RELEASE_PAGES = 3
 DEFAULT_CACHE_TTL = timedelta(hours=24)
 DEFAULT_MAX_WORKERS = 4
@@ -26,12 +27,38 @@ INCOMPLETE_READ_RETRY_DELAY_SECONDS = 0.5
 
 
 class TTLCache:
-    """Small thread-safe process-local cache used by release enrichment."""
+    """Small bounded cache; an optional JSON file makes successful results survive runs."""
 
-    def __init__(self, ttl: timedelta = DEFAULT_CACHE_TTL):
+    def __init__(self, ttl: timedelta = DEFAULT_CACHE_TTL, path=None, max_entries: int = 500):
         self.ttl = ttl
+        self.path = path
+        self.max_entries = max(1, max_entries)
         self._items: dict[str, tuple[datetime, object]] = {}
         self._lock = threading.Lock()
+        if self.path:
+            self._load()
+
+    def _load(self):
+        try:
+            raw = json.loads(self.path.read_text())
+            now = datetime.now(timezone.utc)
+            for key, item in raw.items():
+                if item["expires"] > now.timestamp():
+                    self._items[key] = (datetime.fromtimestamp(item["expires"], timezone.utc), item["value"])
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+            self._items = {}
+
+    def _save(self):
+        if not self.path:
+            return
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {k: {"expires": expires.timestamp(), "value": value} for k, (expires, value) in self._items.items() if isinstance(value, (str, int, float, bool, list, dict, type(None)))}
+            temporary = self.path.with_name(f".{self.path.name}.tmp")
+            temporary.write_text(json.dumps(payload))
+            temporary.replace(self.path)
+        except (OSError, TypeError, ValueError):
+            pass
 
     def get(self, key: str) -> object | None:
         now = datetime.now(timezone.utc)
@@ -42,12 +69,16 @@ class TTLCache:
             expires_at, value = item
             if expires_at <= now:
                 del self._items[key]
+                self._save()
                 return None
             return value
 
     def put(self, key: str, value: object) -> None:
         with self._lock:
             self._items[key] = (datetime.now(timezone.utc) + self.ttl, value)
+            while len(self._items) > self.max_entries:
+                self._items.pop(next(iter(self._items)))
+            self._save()
 
 
 class GitHubLookupError(Exception):
@@ -156,18 +187,28 @@ def enrich_results_with_release_intelligence(
     release_text_fetcher=fetch_release_text,
     ai_summarizer=None,
     cache: TTLCache | None = None,
-) -> None:
+    progress_callback=None,
+    before_ai_callback=None,
+) -> dict[str, object]:
+    def progress(phase: str, completed: int = 0, total: int = 0) -> None:
+        if progress_callback:
+            progress_callback({"phase": phase, "completed": completed, "total": total})
+
     if not config.release_intelligence.enabled:
-        return
+        metrics = _new_enrichment_metrics(config, "disabled")
+        _set_results_enrichment(results, "disabled", metrics)
+        return metrics
+
     ai_summarizer = ai_summarizer or summarize_update_with_ai
-    cache = cache or TTLCache()
-    updates = [
-        update
-        for result in results
-        for update in result.updates[: config.release_intelligence.max_packages]
-    ]
-    # Keep the configured package cap global, matching the previous behavior.
-    updates = updates[: config.release_intelligence.max_packages]
+    cache = cache or TTLCache(
+        timedelta(hours=config.release_intelligence.cache_ttl_hours),
+        config.release_intelligence.cache_path,
+        config.release_intelligence.cache_max_entries,
+    )
+    updates = [update for result in results for update in result.updates]
+    progress("release_lookup", 0, len(updates))
+    started = time.monotonic()
+    metrics = _new_enrichment_metrics(config, "in_progress")
 
     def enrich(update: DependencyUpdate) -> None:
         try:
@@ -180,7 +221,7 @@ def enrich_results_with_release_intelligence(
                 release_info = metadata_fetcher(update)
                 cache.put(metadata_key, release_info)
             update.release_info = release_info
-            _resolve_changelog(update, release_info, release_text_fetcher, cache)
+            _resolve_changelog(update, release_info, release_text_fetcher, cache, config.release_intelligence.evidence_max_chars)
         except (
             OSError,
             http.client.IncompleteRead,
@@ -190,23 +231,189 @@ def enrich_results_with_release_intelligence(
             ValueError,
         ) as exc:
             update.release_info = ReleaseInfo(source="none", source_status="error", source_reason=str(exc))
-        if config.ai.enabled and update.release_info is not None:
-            try:
-                _apply_ai_summary(update.release_info, ai_summarizer(update, update.release_info, config.ai))
-            except (
-                OSError,
-                http.client.IncompleteRead,
-                urllib.error.URLError,
-                json.JSONDecodeError,
-                KeyError,
-                ValueError,
-            ) as exc:
-                update.release_info.ai_summary = f"AI summary unavailable: {exc}"
 
     with ThreadPoolExecutor(max_workers=DEFAULT_MAX_WORKERS) as executor:
         futures = [executor.submit(enrich, update) for update in updates]
         for future in futures:
             future.result()
+    metrics["release_lookup_seconds"] = round(time.monotonic() - started, 3)
+    progress("release_lookup", len(updates), len(updates))
+
+    groups: dict[str, list[DependencyUpdate]] = {}
+    for update in updates:
+        key = _equivalence_key(update, config.ai)
+        groups.setdefault(key, []).append(update)
+    selected = list(groups.items())[: config.release_intelligence.max_packages]
+    metrics["unique_candidates"] = len(selected)
+    initial_state = (
+        "in_progress" if config.ai.enabled and selected else "skipped" if config.ai.enabled else "disabled"
+    )
+    metrics["state"] = initial_state
+    _set_results_enrichment(results, initial_state, metrics)
+    if before_ai_callback:
+        before_ai_callback()
+
+    if not config.ai.enabled or not selected:
+        metrics["duration_seconds"] = round(time.monotonic() - started, 3)
+        progress("finalizing", 1, 1)
+        _set_results_enrichment(results, "skipped" if config.ai.enabled else "disabled", metrics)
+        return metrics
+
+    progress("ai_enrichment", 0, len(selected))
+    ai_started = time.monotonic()
+
+    def analyze(item):
+        key, candidates = item
+        update = candidates[0]
+        release_info = update.release_info
+        if not release_info:
+            return candidates, None, False, None, None, 0.0, "No release evidence was available"
+
+        has_release_evidence = bool(release_info.release_notes_excerpt.strip())
+        if not has_release_evidence and ai_summarizer is summarize_update_with_ai:
+            return candidates, None, False, None, None, 0.0, "No release evidence was available"
+
+        cached_response = cache.get("ai:" + key) if has_release_evidence else None
+        if isinstance(cached_response, str):
+            return candidates, cached_response, True, None, None, 0.0, None
+
+        request_started = time.monotonic()
+        try:
+            raw = (
+                _request_ai(update, release_info, config.ai)
+                if ai_summarizer is summarize_update_with_ai
+                else ai_summarizer(update, release_info, config.ai)
+            )
+            usage = raw.get("usage") if isinstance(raw, dict) else None
+            response = str(raw.get("content", "")) if isinstance(raw, dict) else raw
+            if not isinstance(response, str) or not response.strip():
+                raise ValueError("AI response was empty")
+
+            structured = _extract_json_object(response)
+            if ai_summarizer is summarize_update_with_ai and not _is_valid_summary_json(structured):
+                raise ValueError("AI response was not valid structured JSON")
+            if has_release_evidence and _is_valid_summary_json(structured):
+                cache.put("ai:" + key, response)
+            return (
+                candidates,
+                response,
+                False,
+                usage,
+                None,
+                time.monotonic() - request_started,
+                None,
+            )
+        except Exception as exc:  # AI enrichment is optional and must not fail the report.
+            return (
+                candidates,
+                None,
+                False,
+                None,
+                exc,
+                time.monotonic() - request_started,
+                None,
+            )
+
+    with ThreadPoolExecutor(max_workers=DEFAULT_MAX_WORKERS) as executor:
+        analyses = list(executor.map(analyze, selected))
+
+    for completed_candidates, analysis in enumerate(analyses, start=1):
+        candidates, response, cached, usage, error, request_duration, skipped_reason = analysis
+        metrics["request_duration_seconds"] = round(
+            float(metrics["request_duration_seconds"]) + request_duration,
+            3,
+        )
+        if cached:
+            metrics["cache_hits"] = int(metrics["cache_hits"]) + 1
+        elif skipped_reason:
+            metrics["skipped"] = int(metrics["skipped"]) + 1
+            _set_ai_warning(candidates, skipped_reason)
+        else:
+            metrics["requests"] = int(metrics["requests"]) + 1
+            if error is not None:
+                metrics["failures"] = int(metrics["failures"]) + 1
+                _set_ai_warning(candidates, f"AI summary unavailable: {error}")
+
+        if isinstance(usage, dict):
+            _merge_usage(metrics, usage)
+        if response:
+            for candidate in candidates:
+                if candidate.release_info:
+                    _apply_ai_summary(candidate.release_info, response)
+        progress("ai_enrichment", completed_candidates, len(selected))
+
+    metrics["ai_duration_seconds"] = round(time.monotonic() - ai_started, 3)
+    metrics["duration_seconds"] = round(time.monotonic() - started, 3)
+    successful = int(metrics["cache_hits"]) + int(metrics["requests"]) - int(metrics["failures"])
+    if successful == 0 and int(metrics["skipped"]) == len(selected):
+        final_state = "skipped"
+    elif int(metrics["failures"]) or int(metrics["skipped"]):
+        final_state = "partial"
+    else:
+        final_state = "completed"
+    metrics["state"] = final_state
+    progress("finalizing", 1, 1)
+    _set_results_enrichment(results, final_state, metrics)
+    return metrics
+
+
+def _new_enrichment_metrics(config: Config, state: str) -> dict[str, object]:
+    return {
+        "state": state,
+        "unique_candidates": 0,
+        "cache_hits": 0,
+        "requests": 0,
+        "failures": 0,
+        "skipped": 0,
+        "prompt_tokens": None,
+        "completion_tokens": None,
+        "reasoning_tokens": None,
+        "total_tokens": None,
+        "release_lookup_seconds": 0.0,
+        "ai_duration_seconds": 0.0,
+        "request_duration_seconds": 0.0,
+        "duration_seconds": 0.0,
+        "model": config.ai.model if config.ai.enabled else "",
+    }
+
+
+def _set_results_enrichment(
+    results: list[ProjectResult], state: str, metrics: dict[str, object]
+) -> None:
+    metrics["state"] = state
+    for result in results:
+        result.enrichment_state = state
+        result.enrichment_metrics = dict(metrics)
+
+
+def _set_ai_warning(candidates: list[DependencyUpdate], warning: str) -> None:
+    for candidate in candidates:
+        if candidate.release_info:
+            candidate.release_info.ai_warning = warning
+
+
+def _equivalence_key(update: DependencyUpdate, ai_config: AIConfig) -> str:
+    evidence = update.release_info.release_notes_excerpt if update.release_info else ""
+    material = "|".join((update.ecosystem.lower(), update.package.lower().replace("_", "-"), update.current.strip(), update.wanted.strip(), update.latest.strip(), hashlib.sha256(evidence.encode()).hexdigest(), ai_config.model, ai_config.prompt_schema))
+    return hashlib.sha256(material.encode()).hexdigest()
+
+
+def _merge_usage(metrics: dict[str, object], usage: object) -> None:
+    if not isinstance(usage, dict):
+        return
+    details = usage.get("completion_tokens_details") or usage.get("output_tokens_details") or {}
+    fields = {
+        "prompt_tokens": usage.get("prompt_tokens"),
+        "completion_tokens": usage.get("completion_tokens"),
+        "reasoning_tokens": details.get("reasoning_tokens") if isinstance(details, dict) else None,
+        "total_tokens": usage.get("total_tokens"),
+    }
+    for field, value in fields.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        if value < 0 or not float(value).is_integer():
+            continue
+        metrics[field] = (int(metrics[field]) if metrics[field] is not None else 0) + int(value)
 
 
 def _resolve_changelog(
@@ -214,6 +421,7 @@ def _resolve_changelog(
     release_info: ReleaseInfo,
     release_text_fetcher,
     cache: TTLCache,
+    max_chars: int = MAX_RELEASE_NOTES_CHARS,
 ) -> None:
     github_repo = github_repository(release_info.repository_url)
     github_reason = ""
@@ -229,7 +437,7 @@ def _resolve_changelog(
                 release_info.matched_versions = [str(item.get("tag_name", "")) for item in selected]
                 release_info.is_range_complete = complete
                 release_info.release_notes_excerpt = _sanitize_text(
-                    _render_release_notes(selected), MAX_RELEASE_NOTES_CHARS
+                    _render_release_notes(selected), max_chars
                 )
                 return
             github_reason = "No matching stable GitHub release found"
@@ -250,7 +458,7 @@ def _resolve_changelog(
                 release_info.release_url = f"https://github.com/{github_repo}/releases"
                 release_info.matched_versions = [tag]
                 release_info.is_range_complete = False
-                release_info.release_notes_excerpt = text
+                release_info.release_notes_excerpt = _sanitize_text(text, max_chars)
                 return
 
     if release_info.changelog_url:
@@ -262,7 +470,7 @@ def _resolve_changelog(
             release_info.source = "package_metadata"
             release_info.source_status = "success" if text else "link_only"
             release_info.source_reason = github_reason
-            release_info.release_notes_excerpt = text
+            release_info.release_notes_excerpt = _sanitize_text(text, max_chars)
             return
 
     if release_info.repository_url or release_info.homepage_url:
@@ -483,6 +691,16 @@ def _extract_json_object(text: str) -> str:
     return ""
 
 
+def _is_valid_summary_json(text: str) -> bool:
+    if not text:
+        return False
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError:
+        return False
+    return isinstance(value, dict)
+
+
 def _string_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -490,6 +708,10 @@ def _string_list(value: object) -> list[str]:
 
 
 def summarize_update_with_ai(update: DependencyUpdate, release_info: ReleaseInfo, ai_config: AIConfig) -> str:
+    return str(_request_ai(update, release_info, ai_config).get("content", "")).strip()
+
+
+def _request_ai(update: DependencyUpdate, release_info: ReleaseInfo, ai_config: AIConfig) -> dict:
     api_key = os.environ.get(ai_config.api_key_env) if ai_config.api_key_env else ""
     local_endpoint = "localhost" in ai_config.base_url or "127.0.0.1" in ai_config.base_url
     if not api_key and ai_config.api_key_env and not local_endpoint:
@@ -520,7 +742,11 @@ def summarize_update_with_ai(update: DependencyUpdate, release_info: ReleaseInfo
             },
         ],
         "temperature": 0.2,
+        "max_completion_tokens": ai_config.completion_tokens,
+        "response_format": {"type": "json_object"},
     }
+    if ai_config.reasoning_effort:
+        payload["reasoning_effort"] = ai_config.reasoning_effort
     url = ai_config.base_url.rstrip("/") + "/chat/completions"
     headers = {"Content-Type": "application/json"}
     if api_key:
@@ -528,11 +754,24 @@ def summarize_update_with_ai(update: DependencyUpdate, release_info: ReleaseInfo
     elif local_endpoint:
         headers["Authorization"] = "Bearer ollama"
     request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-    data = json.loads(_read_url(request, timeout=60).decode("utf-8"))
+    try:
+        data = json.loads(_read_url(request, timeout=60).decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        # OpenAI-compatible gateways vary in support for optional controls.
+        # Retry once without them so an otherwise compatible endpoint remains usable.
+        if exc.code not in (400, 404, 422):
+            raise
+        payload.pop("response_format", None)
+        payload.pop("reasoning_effort", None)
+        completion_tokens = payload.pop("max_completion_tokens", None)
+        if completion_tokens is not None:
+            payload["max_tokens"] = completion_tokens
+        request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+        data = json.loads(_read_url(request, timeout=60).decode("utf-8"))
     choices = data.get("choices", [])
     if not choices:
-        return ""
-    return str(choices[0].get("message", {}).get("content", "")).strip()
+        return {"content": "", "usage": data.get("usage")}
+    return {"content": str(choices[0].get("message", {}).get("content", "")).strip(), "usage": data.get("usage")}
 
 
 def _first_pypi_release_date(metadata: dict, version: str) -> str:

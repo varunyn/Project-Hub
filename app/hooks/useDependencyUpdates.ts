@@ -5,14 +5,22 @@ import useSWR from "swr";
 import type { DependencyUpdatesReport } from "../lib/dependencyReport";
 import {
   type DependencyReportJobStatus,
+  fetchDependencyReportAiPreferences,
   fetchDependencyReportStatus,
   fetchDependencyUpdates,
   runDependencyReport,
+  saveDependencyReportAiPreference,
 } from "../lib/dependencyUpdatesApi";
 
 const DEPENDENCY_UPDATES_KEY = "/api/dependency-updates";
 const DEPENDENCY_REPORT_STATUS_KEY = "/api/dependency-updates/status";
+const DEPENDENCY_REPORT_PREFERENCES_KEY = "/api/dependency-updates/preferences";
 const ACTIVE_JOB_STATES = new Set<DependencyReportJobStatus["status"]>(["running"]);
+const STAGED_REPORT_PHASES = new Set<NonNullable<DependencyReportJobStatus["phase"]>>([
+  "release_lookup",
+  "ai_enrichment",
+  "finalizing",
+]);
 
 export function useDependencyUpdates(projectPath?: string) {
   const dependencyUpdatesKey = projectPath
@@ -31,22 +39,40 @@ export function useDependencyUpdates(projectPath?: string) {
     refreshInterval: (status) => (status && ACTIVE_JOB_STATES.has(status.status) ? 2000 : 0),
     revalidateOnFocus: true,
   });
+  const { data: aiPreferences, mutate: mutateAiPreferences } = useSWR(
+    DEPENDENCY_REPORT_PREFERENCES_KEY,
+    fetchDependencyReportAiPreferences
+  );
 
   const running = Boolean(jobStatus && ACTIVE_JOB_STATES.has(jobStatus.status));
 
   useEffect(() => {
-    if (jobStatus?.status === "succeeded") {
+    if (
+      jobStatus?.status === "succeeded" ||
+      (jobStatus?.status === "running" &&
+        jobStatus.phase !== null &&
+        STAGED_REPORT_PHASES.has(jobStatus.phase))
+    ) {
       mutate().catch(() => undefined);
     }
-  }, [jobStatus?.status, mutate]);
+  }, [jobStatus?.phase, jobStatus?.status, mutate]);
 
   const runReport = useCallback(
-    async (projectPath?: string) => {
-      const status = await runDependencyReport(projectPath);
+    async (projectPath?: string, aiEnabled?: boolean) => {
+      const status = await runDependencyReport(projectPath, aiEnabled);
       await mutateStatus(status, false);
       return status;
     },
     [mutateStatus]
+  );
+
+  const setAiEnabled = useCallback(
+    async (aiEnabled: boolean) => {
+      const preferences = await saveDependencyReportAiPreference(aiEnabled);
+      await mutateAiPreferences(preferences, false);
+      return preferences;
+    },
+    [mutateAiPreferences]
   );
 
   return {
@@ -60,5 +86,7 @@ export function useDependencyUpdates(projectPath?: string) {
     refetch: () => mutate(),
     refetchStatus: () => mutateStatus(),
     runReport,
+    aiPreferences: aiPreferences ?? null,
+    setAiEnabled,
   };
 }

@@ -12,6 +12,7 @@ export interface DependencyReleaseInfo {
   aiBreakingChanges: string[];
   aiEvidenceUrls: string[];
   aiSummary: string | null;
+  aiWarning: string | null;
 }
 
 export interface DependencyUpdate {
@@ -42,6 +43,15 @@ export interface DependencyUpdatesReport {
   command: string;
   canRunReporter: boolean;
   runMode: "host" | "server";
+  enrichmentState:
+    | "disabled"
+    | "pending"
+    | "in_progress"
+    | "completed"
+    | "partial"
+    | "skipped"
+    | null;
+  enrichmentMetrics: DependencyReportEnrichmentMetrics;
   projects: DependencyProject[];
   totals: {
     projects: number;
@@ -49,4 +59,21 @@ export interface DependencyUpdatesReport {
     warnings: number;
     errors: number;
   };
+}
+
+export interface DependencyReportEnrichmentMetrics {
+  uniqueCandidates: number | null;
+  cacheHits: number | null;
+  requests: number | null;
+  failures: number | null;
+  skipped: number | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  reasoningTokens: number | null;
+  totalTokens: number | null;
+  requestDurationSeconds: number | null;
+  aiDurationSeconds: number | null;
+  releaseLookupSeconds: number | null;
+  durationSeconds: number | null;
+  model: string | null;
 }

@@ -3,7 +3,11 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { runDependencyReporter } from "./dependencyReportRunner";
+import {
+  getDependencyReportAiAvailability,
+  resolveDependencyReportAiEnabled,
+} from "./dependencyReportAiPreferences";
+import { type DependencyReportProgress, runDependencyReporter } from "./dependencyReportRunner";
 
 export type DependencyReportJobStatus = "idle" | "running" | "succeeded" | "failed" | "interrupted";
 
@@ -15,6 +19,11 @@ export interface DependencyReportJob {
   startedAt: string | null;
   completedAt: string | null;
   error: string | null;
+  aiEnabled: boolean;
+  aiAvailable: boolean;
+  phase: "scanning" | "release_lookup" | "ai_enrichment" | "finalizing" | null;
+  completed: number;
+  total: number;
 }
 
 const defaultJob: DependencyReportJob = {
@@ -25,6 +34,11 @@ const defaultJob: DependencyReportJob = {
   startedAt: null,
   completedAt: null,
   error: null,
+  aiEnabled: false,
+  aiAvailable: false,
+  phase: null,
+  completed: 0,
+  total: 0,
 };
 
 let activeJobId: string | null = null;
@@ -37,7 +51,7 @@ function jobFilePath(): string {
 function readStoredJob(): DependencyReportJob {
   try {
     const value = JSON.parse(
-      fs.readFileSync(jobFilePath(), "utf8")
+      fs.readFileSync(/* turbopackIgnore: true */ jobFilePath(), "utf8")
     ) as Partial<DependencyReportJob>;
     const job = { ...defaultJob, ...value };
     if (job.status === "running" && job.id !== activeJobId) {
@@ -70,10 +84,15 @@ export function getDependencyReportJob(): DependencyReportJob {
   return readStoredJob();
 }
 
-export function startDependencyReportJob(projectPath?: string): DependencyReportJob {
+export function startDependencyReportJob(
+  projectPath?: string,
+  requestedAiEnabled?: boolean
+): DependencyReportJob {
   const current = readStoredJob();
   if (current.status === "running") return current;
 
+  const availability = getDependencyReportAiAvailability();
+  const aiEnabled = resolveDependencyReportAiEnabled(requestedAiEnabled);
   const now = new Date().toISOString();
   const job: DependencyReportJob = {
     id: randomUUID(),
@@ -83,18 +102,35 @@ export function startDependencyReportJob(projectPath?: string): DependencyReport
     startedAt: now,
     completedAt: null,
     error: null,
+    aiEnabled,
+    aiAvailable: availability.aiAvailable,
+    phase: "scanning",
+    completed: 0,
+    total: 0,
   };
   activeJobId = job.id;
   writeStoredJob(job);
 
   // Deliberately do not await: the API acknowledges the durable job immediately.
-  runDependencyReporter(projectPath)
+  const updateProgress = (progress: DependencyReportProgress) => {
+    const currentJob = readStoredJob();
+    if (currentJob.id !== job.id || currentJob.status !== "running") return;
+    writeStoredJob({
+      ...currentJob,
+      phase: progress.phase,
+      completed: progress.completed,
+      total: progress.total,
+    });
+  };
+  runDependencyReporter(projectPath, aiEnabled, updateProgress)
     .then((result) => {
       const currentJob = readStoredJob();
       if (currentJob.id !== job.id) return;
       writeStoredJob({
         ...currentJob,
         status: result.ok ? "succeeded" : "failed",
+        phase: "finalizing",
+        completed: currentJob.total,
         completedAt: new Date().toISOString(),
         error: result.ok ? null : result.stderr || "Dependency report generation failed.",
       });

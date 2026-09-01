@@ -8,6 +8,10 @@ from .models import Project
 
 
 PYTHON_MANIFESTS = {"requirements.txt", "pyproject.toml", "Pipfile"}
+# Eve stores generated runtime snapshots below this directory. It is deliberately
+# explicit rather than treating every dot-directory as generated, since hidden
+# source directories can contain legitimate projects.
+GENERATED_IGNORE_DIRS = {".eve"}
 
 
 def discover_projects(scan_roots: list[Path], ignore_dirs: set[str]) -> list[Project]:
@@ -33,6 +37,7 @@ def discover_projects(scan_roots: list[Path], ignore_dirs: set[str]) -> list[Pro
 
 
 def _walk(root: Path, ignore_dirs: set[str]) -> Iterator[tuple[Path, list[str], list[str]]]:
+    ignored = set(ignore_dirs) | GENERATED_IGNORE_DIRS
     for current, dirs, files in os.walk(root):
-        dirs[:] = [directory for directory in dirs if directory not in ignore_dirs]
+        dirs[:] = [directory for directory in dirs if directory not in ignored]
         yield Path(current), dirs, files

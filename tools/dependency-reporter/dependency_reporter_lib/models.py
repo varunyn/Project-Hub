@@ -32,6 +32,7 @@ class ReleaseInfo:
     release_url: str = ""
     matched_versions: list[str] = field(default_factory=list)
     is_range_complete: bool | None = None
+    ai_warning: str = ""
 
 
 @dataclass
@@ -49,6 +50,10 @@ class DependencyUpdate:
 class ReleaseIntelligenceConfig:
     enabled: bool = False
     max_packages: int = 25
+    evidence_max_chars: int = 2000
+    cache_path: Path | None = None
+    cache_ttl_hours: int = 168
+    cache_max_entries: int = 500
 
 
 @dataclass
@@ -57,6 +62,9 @@ class AIConfig:
     base_url: str = "https://api.openai.com/v1"
     model: str = "gpt-4.1-mini"
     api_key_env: str = "OPENAI_API_KEY"
+    completion_tokens: int = 300
+    reasoning_effort: str | None = None
+    prompt_schema: str = "dependency-summary-v1"
 
 
 @dataclass
@@ -81,3 +89,5 @@ class ProjectResult:
     updates: list[DependencyUpdate] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    enrichment_state: str = "disabled"
+    enrichment_metrics: dict[str, object] = field(default_factory=dict)

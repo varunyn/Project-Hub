@@ -1,14 +1,11 @@
 import "server-only";
 
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import { getProjects, resolveProjectPathForServer } from "../utils/projectUtils";
 import { reportOutputDir, scopedReportOutputDir } from "./dependencyReport";
-
-const execFileAsync = promisify(execFile);
 
 const DEFAULT_REPORTER_SCRIPT = path.join(
   process.cwd(),
@@ -25,6 +22,44 @@ export interface DependencyReportRunResult {
   command: string;
   outputDir: string;
 }
+
+export interface DependencyReportProgress {
+  phase: "scanning" | "release_lookup" | "ai_enrichment" | "finalizing";
+  completed: number;
+  total: number;
+}
+
+export type DependencyReportProgressCallback = (progress: DependencyReportProgress) => void;
+
+export function parseDependencyReportProgress(line: string): DependencyReportProgress | null {
+  try {
+    const value = JSON.parse(line) as Record<string, unknown>;
+    const phases = ["scanning", "release_lookup", "ai_enrichment", "finalizing"] as const;
+    const phase = value.phase as (typeof phases)[number];
+    if (
+      value.type !== "dependency_report_progress" ||
+      typeof value.phase !== "string" ||
+      !phases.includes(phase)
+    )
+      return null;
+    if (typeof value.completed !== "number" || typeof value.total !== "number") return null;
+    const completed = value.completed;
+    const total = value.total;
+    if (
+      !(Number.isInteger(completed) && Number.isInteger(total)) ||
+      completed < 0 ||
+      total < 0 ||
+      completed > total
+    )
+      return null;
+    return { phase, completed, total };
+  } catch {
+    return null;
+  }
+}
+
+// Short alias kept for callers that only need to consume a single JSONL event.
+export const parseProgressLine = parseDependencyReportProgress;
 
 function isRunEnabled(): boolean {
   return process.env.DEPENDENCY_REPORT_RUN_ENABLED === "true";
@@ -55,15 +90,22 @@ function numberEnv(name: string, fallback: number): number {
 }
 
 function yamlList(values: string[]): string {
-  return values.map((value) => `  - ${value}`).join("\n");
+  return values.map((value) => `  - ${JSON.stringify(value)}`).join("\n");
 }
 
-function buildReporterConfig(scanRoots: string[], outputDir: string): string {
+function yamlString(value: string): string {
+  return JSON.stringify(value);
+}
+
+export function buildReporterConfig(
+  scanRoots: string[],
+  outputDir: string,
+  aiEnabled = boolEnv("DEPENDENCY_REPORT_AI_ENABLED", false)
+): string {
   const releaseIntelligenceEnabled = boolEnv(
     "DEPENDENCY_REPORT_RELEASE_INTELLIGENCE_ENABLED",
     true
   );
-  const aiEnabled = boolEnv("DEPENDENCY_REPORT_AI_ENABLED", false);
   const maxPackages = numberEnv("DEPENDENCY_REPORT_RELEASE_MAX_PACKAGES", 25);
   const aiBaseUrl = process.env.DEPENDENCY_REPORT_AI_BASE_URL || "http://localhost:3001/v1";
   const aiModel = process.env.DEPENDENCY_REPORT_AI_MODEL || "meta.llama-4-scout-17b-16e-instruct";
@@ -72,7 +114,7 @@ function buildReporterConfig(scanRoots: string[], outputDir: string): string {
   return [
     "scan_roots:",
     yamlList(scanRoots),
-    `output_dir: ${outputDir}`,
+    `output_dir: ${yamlString(outputDir)}`,
     "ignore_dirs:",
     yamlList([
       ".git",
@@ -84,22 +126,36 @@ function buildReporterConfig(scanRoots: string[], outputDir: string): string {
       "dist",
       "build",
       ".next",
+      ".eve",
     ]),
     "release_intelligence:",
     `  enabled: ${releaseIntelligenceEnabled}`,
     `  max_packages: ${maxPackages}`,
+    `  evidence_max_chars: ${numberEnv("DEPENDENCY_REPORT_EVIDENCE_MAX_CHARS", 2000)}`,
+    `  cache_path: ${yamlString(process.env.DEPENDENCY_REPORT_CACHE_PATH || path.join(reportOutputDir(), "dependency-report-cache.json"))}`,
+    `  cache_ttl_hours: ${numberEnv("DEPENDENCY_REPORT_CACHE_TTL_HOURS", 168)}`,
+    `  cache_max_entries: ${numberEnv("DEPENDENCY_REPORT_CACHE_MAX_ENTRIES", 500)}`,
     "ai:",
     `  enabled: ${aiEnabled}`,
-    `  base_url: ${aiBaseUrl}`,
-    `  model: ${aiModel}`,
-    `  api_key_env: ${aiKeyEnv}`,
+    `  base_url: ${yamlString(aiBaseUrl)}`,
+    `  model: ${yamlString(aiModel)}`,
+    `  api_key_env: ${yamlString(aiKeyEnv)}`,
+    `  completion_tokens: ${numberEnv("DEPENDENCY_REPORT_AI_COMPLETION_TOKENS", 300)}`,
+    `  prompt_schema: ${yamlString(process.env.DEPENDENCY_REPORT_AI_PROMPT_SCHEMA || "dependency-summary-v1")}`,
+    ...(process.env.DEPENDENCY_REPORT_AI_REASONING_EFFORT
+      ? [`  reasoning_effort: ${yamlString(process.env.DEPENDENCY_REPORT_AI_REASONING_EFFORT)}`]
+      : []),
     "",
   ].join("\n");
 }
 
-async function writeTemporaryConfig(scanRoots: string[], outputDir: string): Promise<string> {
+async function writeTemporaryConfig(
+  scanRoots: string[],
+  outputDir: string,
+  aiEnabled: boolean
+): Promise<string> {
   const configPath = path.join(os.tmpdir(), `dependency-reporter-${Date.now()}.yaml`);
-  await fs.writeFile(configPath, buildReporterConfig(scanRoots, outputDir), "utf8");
+  await fs.writeFile(configPath, buildReporterConfig(scanRoots, outputDir, aiEnabled), "utf8");
   return configPath;
 }
 
@@ -112,7 +168,9 @@ function outputSnippet(value: string): string {
 }
 
 export async function runDependencyReporter(
-  projectPath?: string
+  projectPath?: string,
+  aiEnabled = boolEnv("DEPENDENCY_REPORT_AI_ENABLED", false),
+  onProgress?: DependencyReportProgressCallback
 ): Promise<DependencyReportRunResult> {
   if (!isRunEnabled()) {
     throw new Error(
@@ -144,21 +202,11 @@ export async function runDependencyReporter(
     ? scopedReportOutputDir(requestedProject.path)
     : reportOutputDir();
   await fs.mkdir(outputDir, { recursive: true });
-  const configPath = await writeTemporaryConfig(scanRoots, outputDir);
+  const configPath = await writeTemporaryConfig(scanRoots, outputDir, aiEnabled);
 
   try {
-    const result = await execFileAsync(reporterPython(), [scriptPath, "--config", configPath], {
-      cwd: path.dirname(scriptPath),
-      timeout: reportTimeoutMs(),
-      maxBuffer: 1024 * 1024 * 8,
-    });
-    return {
-      ok: true,
-      stdout: outputSnippet(result.stdout),
-      stderr: outputSnippet(result.stderr),
-      command: commandLabel(configPath),
-      outputDir,
-    };
+    const result = await runReporterProcess(configPath, onProgress);
+    return { ...result, command: commandLabel(configPath), outputDir };
   } catch (error) {
     const details = error as Error & { stdout?: string; stderr?: string };
     return {
@@ -174,4 +222,61 @@ export async function runDependencyReporter(
   } finally {
     await fs.unlink(configPath).catch(() => undefined);
   }
+}
+
+async function runReporterProcess(
+  configPath: string,
+  onProgress?: DependencyReportProgressCallback
+): Promise<Pick<DependencyReportRunResult, "ok" | "stdout" | "stderr">> {
+  return new Promise((resolve) => {
+    const child = spawn(
+      /* turbopackIgnore: true */
+      reporterPython(),
+      [reporterScript(), "--config", configPath, "--progress"],
+      {
+        cwd: path.dirname(reporterScript()),
+      }
+    );
+    let stdout = "";
+    let stderr = "";
+    const pending = { stdout: "", stderr: "" };
+    const consume = (chunk: Buffer, stream: "stdout" | "stderr") => {
+      const text = chunk.toString();
+      if (stream === "stdout") stdout += text;
+      else stderr += text;
+      pending[stream] += text;
+      const lines = pending[stream].split(/\r?\n/);
+      pending[stream] = lines.pop() ?? "";
+      for (const line of lines) {
+        const progress = parseDependencyReportProgress(line.trim());
+        if (progress) onProgress?.(progress);
+      }
+    };
+    child.stdout.on("data", (chunk: Buffer) => consume(chunk, "stdout"));
+    child.stderr.on("data", (chunk: Buffer) => consume(chunk, "stderr"));
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      resolve({
+        ok: false,
+        stdout: outputSnippet(stdout),
+        stderr: outputSnippet(stderr || stdout || "Dependency report timed out."),
+      });
+    }, reportTimeoutMs());
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      resolve({
+        ok: false,
+        stdout: outputSnippet(stdout),
+        stderr: outputSnippet(stderr || stdout || error.message),
+      });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({
+        ok: code === 0,
+        stdout: outputSnippet(stdout),
+        stderr: outputSnippet(stderr || (code === 0 ? "" : stdout)),
+      });
+    });
+  });
 }

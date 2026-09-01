@@ -11,6 +11,7 @@ import {
 import type {
   DependencyProject,
   DependencyReleaseInfo,
+  DependencyReportEnrichmentMetrics,
   DependencyUpdate,
   DependencyUpdatesReport,
 } from "./dependencyReportTypes";
@@ -35,6 +36,7 @@ interface RawReport {
   generated_at?: unknown;
   scan_roots?: unknown;
   projects?: unknown;
+  enrichment?: unknown;
 }
 
 interface RawProject {
@@ -70,7 +72,25 @@ interface RawReleaseInfo {
   ai_breaking_changes?: unknown;
   ai_evidence_urls?: unknown;
   ai_summary?: unknown;
+  ai_warning?: unknown;
 }
+
+const EMPTY_ENRICHMENT_METRICS: DependencyReportEnrichmentMetrics = {
+  uniqueCandidates: null,
+  cacheHits: null,
+  requests: null,
+  failures: null,
+  skipped: null,
+  promptTokens: null,
+  completionTokens: null,
+  reasoningTokens: null,
+  totalTokens: null,
+  requestDurationSeconds: null,
+  aiDurationSeconds: null,
+  releaseLookupSeconds: null,
+  durationSeconds: null,
+  model: null,
+};
 
 export function reportOutputDir(): string {
   return process.env.DEPENDENCY_REPORT_OUTPUT_DIR ?? DEFAULT_REPORT_OUTPUT_DIR;
@@ -112,7 +132,9 @@ function normalizeReportPath(value: string): string {
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function asString(value: unknown): string {
@@ -165,7 +187,39 @@ function normalizeReleaseInfo(value: unknown): DependencyReleaseInfo {
     aiBreakingChanges: asStringArray(info.ai_breaking_changes),
     aiEvidenceUrls: asStringArray(info.ai_evidence_urls).filter((url) => normalizeUrl(url)),
     aiSummary: asNullableString(info.ai_summary),
+    aiWarning: asNullableString(info.ai_warning),
   };
+}
+
+function nullableNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function normalizeEnrichmentMetrics(value: unknown): DependencyReportEnrichmentMetrics {
+  const raw = asRecord(value);
+  return {
+    uniqueCandidates: nullableNumber(raw.unique_candidates),
+    cacheHits: nullableNumber(raw.cache_hits),
+    requests: nullableNumber(raw.requests),
+    failures: nullableNumber(raw.failures),
+    skipped: nullableNumber(raw.skipped),
+    promptTokens: nullableNumber(raw.prompt_tokens),
+    completionTokens: nullableNumber(raw.completion_tokens),
+    reasoningTokens: nullableNumber(raw.reasoning_tokens),
+    totalTokens: nullableNumber(raw.total_tokens),
+    requestDurationSeconds: nullableNumber(raw.request_duration_seconds),
+    aiDurationSeconds: nullableNumber(raw.ai_duration_seconds),
+    releaseLookupSeconds: nullableNumber(raw.release_lookup_seconds),
+    durationSeconds: nullableNumber(raw.duration_seconds),
+    model: asNullableString(raw.model),
+  };
+}
+
+function normalizeEnrichmentState(value: unknown): DependencyUpdatesReport["enrichmentState"] {
+  const state = asString(value);
+  return ["disabled", "pending", "in_progress", "completed", "partial", "skipped"].includes(state)
+    ? (state as Exclude<DependencyUpdatesReport["enrichmentState"], null>)
+    : null;
 }
 
 function normalizeUpdate(update: unknown, projectPath: string): DependencyUpdate | null {
@@ -257,6 +311,8 @@ export async function readLatestDependencyReport(
       command: DEPENDENCY_REPORT_COMMAND,
       canRunReporter: canRunReporter(),
       runMode: reportRunMode(),
+      enrichmentState: null,
+      enrichmentMetrics: { ...EMPTY_ENRICHMENT_METRICS },
       projects: [],
       totals: { projects: 0, updates: 0, warnings: 0, errors: 0 },
     };
@@ -277,6 +333,8 @@ export async function readLatestDependencyReport(
     command: DEPENDENCY_REPORT_COMMAND,
     canRunReporter: canRunReporter(),
     runMode: reportRunMode(),
+    enrichmentState: normalizeEnrichmentState(asRecord(rawReport.enrichment).state),
+    enrichmentMetrics: normalizeEnrichmentMetrics(asRecord(rawReport.enrichment).metrics),
     projects,
     totals: calculateTotals(projects),
   };

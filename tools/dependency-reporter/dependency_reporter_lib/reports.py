@@ -18,9 +18,15 @@ def write_reports(
     output_dir.mkdir(parents=True, exist_ok=True)
     markdown_path = output_dir / f"dependency-report-{date_string}.md"
     json_path = output_dir / f"dependency-report-{date_string}.json"
-    markdown_path.write_text(_render_markdown(results, scan_roots, date_string))
-    json_path.write_text(json.dumps(_render_json(results, scan_roots, date_string), indent=2))
+    _atomic_write(markdown_path, _render_markdown(results, scan_roots, date_string))
+    _atomic_write(json_path, json.dumps(_render_json(results, scan_roots, date_string), indent=2))
     return {"markdown": markdown_path, "json": json_path}
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(content)
+    temporary.replace(path)
 
 
 def _render_markdown(results: list[ProjectResult], scan_roots: list[Path], date_string: str) -> str:
@@ -39,6 +45,12 @@ def _render_markdown(results: list[ProjectResult], scan_roots: list[Path], date_
         f"- Errors: {error_count}",
         "",
     ]
+    states = sorted({result.enrichment_state for result in results if result.enrichment_state})
+    if states:
+        lines.extend([f"- AI enrichment: {', '.join(states)}", ""])
+    metrics = next((result.enrichment_metrics for result in results if result.enrichment_metrics), None)
+    if metrics:
+        lines.extend([f"- AI metrics: {json.dumps(metrics, sort_keys=True)}", ""])
     _append_upgrade_planning(lines, results)
     lines.extend(["## Projects With Updates", ""])
     results_with_updates = sorted(
@@ -215,7 +227,18 @@ def _render_json(results: list[ProjectResult], scan_roots: list[Path], date_stri
             }
             for result in sorted(results, key=lambda item: str(item.project.path))
         ],
+        "enrichment": _aggregate_enrichment(results),
     }
+
+
+def _aggregate_enrichment(results: list[ProjectResult]) -> dict:
+    for result in results:
+        if result.enrichment_state:
+            return {
+                "state": result.enrichment_state,
+                "metrics": result.enrichment_metrics,
+            }
+    return {"state": "disabled", "metrics": {}}
 
 
 def _render_update_json(update: DependencyUpdate) -> dict:

@@ -36,6 +36,26 @@ class DiscoveryTests(unittest.TestCase):
 
 
 class ConfigTests(unittest.TestCase):
+    def test_load_config_parses_generated_quoted_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.yaml"
+            config_path.write_text(
+                'scan_roots:\n  - "/tmp/AI Tools/project#1"\n'
+                'output_dir: "/tmp/report output"\n'
+                'ignore_dirs:\n  - ".eve"\n'
+                'release_intelligence:\n  cache_path: "/tmp/report output/cache.json"\n'
+            )
+
+            config = dependency_reporter.load_config(config_path)
+
+        self.assertEqual(config.scan_roots, [Path("/tmp/AI Tools/project#1")])
+        self.assertEqual(config.output_dir, Path("/tmp/report output"))
+        self.assertEqual(config.ignore_dirs, {".eve"})
+        self.assertEqual(
+            config.release_intelligence.cache_path,
+            Path("/tmp/report output/cache.json"),
+        )
+
     def test_load_config_reads_scan_roots_output_dir_and_ignored_dirs(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "config.yaml"
@@ -420,7 +440,7 @@ class ReleaseIntelligenceTests(unittest.TestCase):
             ai=dependency_reporter.AIConfig(enabled=False),
         )
 
-        dependency_reporter.enrich_results_with_release_intelligence(
+        metrics = dependency_reporter.enrich_results_with_release_intelligence(
             [result],
             config,
             metadata_fetcher=lambda dependency_update: dependency_reporter.ReleaseInfo(homepage_url="https://react.dev/"),
@@ -429,6 +449,8 @@ class ReleaseIntelligenceTests(unittest.TestCase):
 
         self.assertEqual(update.release_info.homepage_url, "https://react.dev/")
         self.assertEqual(update.release_info.ai_summary, "")
+        self.assertEqual(result.enrichment_state, "disabled")
+        self.assertEqual(metrics["state"], "disabled")
 
     def test_ai_summary_allows_endpoint_without_api_key(self):
         update = dependency_reporter.DependencyUpdate("python", "fastapi", "0.128.0", "", "0.129.0", "wheel")

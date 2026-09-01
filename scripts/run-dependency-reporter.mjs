@@ -21,7 +21,11 @@ const toolPath = [
 ].join(path.delimiter);
 
 function yamlList(values) {
-  return values.map((value) => `  - ${value}`).join("\n");
+  return values.map((value) => `  - ${JSON.stringify(value)}`).join("\n");
+}
+
+function yamlString(value) {
+  return JSON.stringify(value);
 }
 
 function boolEnv(name, fallback) {
@@ -43,7 +47,7 @@ function buildConfig(scanRoots) {
   return [
     "scan_roots:",
     yamlList(scanRoots),
-    `output_dir: ${outputDir}`,
+    `output_dir: ${yamlString(outputDir)}`,
     "ignore_dirs:",
     yamlList([
       ".git",
@@ -55,15 +59,25 @@ function buildConfig(scanRoots) {
       "dist",
       "build",
       ".next",
+      ".eve",
     ]),
     "release_intelligence:",
     `  enabled: ${boolEnv("DEPENDENCY_REPORT_RELEASE_INTELLIGENCE_ENABLED", true)}`,
     `  max_packages: ${numberEnv("DEPENDENCY_REPORT_RELEASE_MAX_PACKAGES", 25)}`,
+    `  evidence_max_chars: ${numberEnv("DEPENDENCY_REPORT_EVIDENCE_MAX_CHARS", 2000)}`,
+    `  cache_path: ${yamlString(process.env.DEPENDENCY_REPORT_CACHE_PATH || path.join(outputDir, "dependency-report-cache.json"))}`,
+    `  cache_ttl_hours: ${numberEnv("DEPENDENCY_REPORT_CACHE_TTL_HOURS", 168)}`,
+    `  cache_max_entries: ${numberEnv("DEPENDENCY_REPORT_CACHE_MAX_ENTRIES", 500)}`,
     "ai:",
     `  enabled: ${boolEnv("DEPENDENCY_REPORT_AI_ENABLED", false)}`,
-    `  base_url: ${aiBaseUrl}`,
-    `  model: ${aiModel}`,
-    `  api_key_env: ${aiKeyEnv}`,
+    `  base_url: ${yamlString(aiBaseUrl)}`,
+    `  model: ${yamlString(aiModel)}`,
+    `  api_key_env: ${yamlString(aiKeyEnv)}`,
+    `  completion_tokens: ${numberEnv("DEPENDENCY_REPORT_AI_COMPLETION_TOKENS", 300)}`,
+    `  prompt_schema: ${yamlString(process.env.DEPENDENCY_REPORT_AI_PROMPT_SCHEMA || "dependency-summary-v1")}`,
+    ...(process.env.DEPENDENCY_REPORT_AI_REASONING_EFFORT
+      ? [`  reasoning_effort: ${yamlString(process.env.DEPENDENCY_REPORT_AI_REASONING_EFFORT)}`]
+      : []),
     "",
   ].join("\n");
 }

@@ -4,17 +4,27 @@ output_dir: outputs
 ignore_dirs:
   - .git
   - node_modules
+  - .pnpm-store
   - .venv
   - venv
   - __pycache__
   - dist
   - build
   - .next
+  - .eve
 release_intelligence:
   enabled: true
   max_packages: 25
+  evidence_max_chars: 2000
+  cache_path: outputs/dependency-report-cache.json
+  cache_ttl_hours: 168
+  cache_max_entries: 500
 ai:
   enabled: true
   base_url: http://localhost:3001/v1
   model: meta.llama-4-scout-17b-16e-instruct
   api_key_env:
+  completion_tokens: 300
+  prompt_schema: dependency-summary-v1
+  # Optional and only sent when supported by the configured endpoint.
+  # reasoning_effort: low
