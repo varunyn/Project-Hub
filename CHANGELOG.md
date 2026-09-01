@@ -1,7 +1,10 @@
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-01
+
 ### Added
 
+- Projects can now import GitHub issues, create issues from local tasks, and keep task status labels and issue state synchronized.
 - Dependency reports can now include or skip AI suggestions per run, while remembering the selected mode for later reports.
 - Dependency views now show report phases, cache and request counts, stage durations, and provider-reported token usage when available.
 
@@ -9,7 +12,6 @@
 
 - Dependency reports now ignore generated `.eve` snapshots, deduplicate equivalent AI analysis with a bounded persistent cache, and make deterministic results available before optional enrichment finishes.
 - Dependency report runs are now persisted as server-managed background jobs with shared status and duplicate-run protection across navigation and refreshes.
-- Removed the optional MCP service and its Docker configuration; use the Project Hub web app directly for project and task management.
 - Upgraded the app to Next.js 16.3.0 and switched the default font to a system stack so builds do not depend on Google Fonts being reachable.
 
 ### Fixed
@@ -19,6 +21,10 @@
 - Dependency reports now retry interrupted downloads and record individual enrichment failures instead of failing the complete report.
 - AI enrichment failures now remain nonfatal warnings, and missing provider usage stays explicitly unavailable instead of being estimated.
 - Production builds now complete with Turbopack while runtime filesystem scans remain excluded from standalone tracing.
+
+### Breaking
+
+- Removed the optional MCP service and its Docker configuration; remove the Project Hub server entry from MCP clients and any custom Compose references, because MCP API access has no direct replacement and project/task management now continues through the web app without a project-data migration.
 
 ## [0.2.0] - 2026-07-30
 
