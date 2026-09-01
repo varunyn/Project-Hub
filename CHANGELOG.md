@@ -1,5 +1,22 @@
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-01
+
+### Added
+
+- Unified the project and global task boards into a single TaskBoard module so both workspaces share the same board, list, filter, and editing behavior.
+- The global `/tasks` workspace now supports the full task detail panel, including description, assignee, and due date.
+- Replaced the Python/uv MCP server and optional Docker HTTP sidecar with a compiled TypeScript stdio server that shares the app’s domain utilities and JSON storage.
+
+### Fixed
+
+- Task moves now insert at the requested Kanban position and consistently normalize the source and destination columns.
+- Prevented an SWR cache-key collision between project and all-task queries.
+
+### Breaking
+
+- MCP clients must run `pnpm build` and switch from the `uv` command to `node <path-to-project-hub>/mcp/dist/mcp/server.js`; project and task JSON data needs no migration.
+
 ## [0.3.0] - 2026-09-01
 
 ### Added
@@ -10,9 +27,8 @@
 
 ### Changed
 
- - Dependency reports now ignore generated `.eve` snapshots, deduplicate equivalent AI analysis with a bounded persistent cache, and make deterministic results available before optional enrichment finishes.
- - Dependency report runs are now persisted as server-managed background jobs with shared status and duplicate-run protection across navigation and refreshes.
- - Unified the project and global task boards into a single TaskBoard module so both workspaces share the same board, list, filter, and editing behavior.
+- Dependency reports now ignore generated `.eve` snapshots, deduplicate equivalent AI analysis with a bounded persistent cache, and make deterministic results available before optional enrichment finishes.
+- Dependency report runs are now persisted as server-managed background jobs with shared status and duplicate-run protection across navigation and refreshes.
 - The global `/tasks` workspace now supports the full task detail panel, including description, assignee, and due date.
 - Upgraded the app to Next.js 16.3.0 and switched the default font to a system stack so builds do not depend on Google Fonts being reachable.
 
@@ -21,17 +37,13 @@
 - Project dependency views now read their latest scoped report, and the global dashboard merges newer project runs instead of showing stale package versions.
 - The dependency detail AI suggestion action now reveals its reasoning, notable or breaking changes, and supporting evidence.
 - Dependency reports now retry interrupted downloads and record individual enrichment failures instead of failing the complete report.
- - AI enrichment failures now remain nonfatal warnings, and missing provider usage stays explicitly unavailable instead of being estimated.
- - Replaced the Python/uv MCP server and optional Docker HTTP sidecar with a compiled TypeScript stdio server that shares the app’s domain utilities and JSON storage.
-  - Task moves now insert at the requested Kanban position and consistently normalize the source and destination columns.
-
-### Fixed
+- AI enrichment failures now remain nonfatal warnings, and missing provider usage stays explicitly unavailable instead of being estimated.
 
 - Production builds now complete with Turbopack while runtime filesystem scans remain excluded from standalone tracing.
 
 ### Breaking
 
- - MCP clients must run `pnpm build` and switch from the `uv` command to `node <path-to-project-hub>/mcp/dist/mcp/server.js`; project and task JSON data needs no migration.
+- Removed the optional MCP service and its Docker configuration; remove the Project Hub server entry from MCP clients and any custom Compose references, because MCP API access has no direct replacement and project/task management now continues through the web app without a project-data migration.
 
 ## [0.2.0] - 2026-07-30
 
