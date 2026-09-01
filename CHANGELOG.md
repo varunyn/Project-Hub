@@ -8,6 +8,8 @@
 
 ### Fixed
 
+- Project dependency views now read their latest scoped report, and the global dashboard merges newer project runs instead of showing stale package versions.
+- The dependency detail AI suggestion action now reveals its reasoning, notable or breaking changes, and supporting evidence.
 - Dependency reports now retry interrupted downloads and record individual enrichment failures instead of failing the complete report.
 - Production builds now complete with Turbopack while runtime filesystem scans remain excluded from standalone tracing.
 

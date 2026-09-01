@@ -14,9 +14,12 @@ const DEPENDENCY_UPDATES_KEY = "/api/dependency-updates";
 const DEPENDENCY_REPORT_STATUS_KEY = "/api/dependency-updates/status";
 const ACTIVE_JOB_STATES = new Set<DependencyReportJobStatus["status"]>(["running"]);
 
-export function useDependencyUpdates() {
+export function useDependencyUpdates(projectPath?: string) {
+  const dependencyUpdatesKey = projectPath
+    ? `${DEPENDENCY_UPDATES_KEY}?projectPath=${encodeURIComponent(projectPath)}`
+    : DEPENDENCY_UPDATES_KEY;
   const { data, error, isLoading, mutate } = useSWR<DependencyUpdatesReport>(
-    DEPENDENCY_UPDATES_KEY,
+    dependencyUpdatesKey,
     fetchDependencyUpdates
   );
   const {

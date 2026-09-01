@@ -489,7 +489,8 @@ function ProjectDependencyContent({
 }
 
 export default function ProjectDependencyUpdates({ projectPath }: { projectPath: string }) {
-  const { report, loading, error, refetch, runReport, status, running } = useDependencyUpdates();
+  const { report, loading, error, refetch, runReport, status, running } =
+    useDependencyUpdates(projectPath);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const matchingProjects = useMemo(() => {

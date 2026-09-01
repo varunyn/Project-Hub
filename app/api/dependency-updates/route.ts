@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
-import { readLatestDependencyReport } from "../../lib/dependencyReport";
+import {
+  readConsolidatedDependencyReport,
+  readDependencyReportForProject,
+} from "../../lib/dependencyReport";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const report = await readLatestDependencyReport();
+    const projectPath = new URL(request.url).searchParams.get("projectPath")?.trim();
+    const report = projectPath
+      ? await readDependencyReportForProject(projectPath)
+      : await readConsolidatedDependencyReport();
     return NextResponse.json(report);
   } catch (error) {
     console.error("Failed to read dependency report:", error);

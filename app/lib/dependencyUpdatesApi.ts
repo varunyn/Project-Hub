@@ -22,8 +22,10 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return data as T;
 }
 
-export async function fetchDependencyUpdates(): Promise<DependencyUpdatesReport> {
-  const response = await fetch(DEPENDENCY_UPDATES_BASE);
+export async function fetchDependencyUpdates(
+  requestUrl = DEPENDENCY_UPDATES_BASE
+): Promise<DependencyUpdatesReport> {
+  const response = await fetch(requestUrl);
   return handleResponse<DependencyUpdatesReport>(response);
 }
 

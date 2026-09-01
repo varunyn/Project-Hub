@@ -1,13 +1,12 @@
 import "server-only";
 
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { getProjects, resolveProjectPathForServer } from "../utils/projectUtils";
-import { reportOutputDir } from "./dependencyReport";
+import { reportOutputDir, scopedReportOutputDir } from "./dependencyReport";
 
 const execFileAsync = promisify(execFile);
 
@@ -110,11 +109,6 @@ function commandLabel(configPath: string): string {
 
 function outputSnippet(value: string): string {
   return value.trim().slice(0, 4000);
-}
-
-function scopedReportOutputDir(projectPath: string): string {
-  const projectHash = createHash("sha256").update(projectPath).digest("hex").slice(0, 16);
-  return path.join(reportOutputDir(), "projects", projectHash);
 }
 
 export async function runDependencyReporter(

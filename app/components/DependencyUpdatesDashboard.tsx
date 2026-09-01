@@ -863,6 +863,8 @@ function DetailTabs({ row }: { row: RowModel }) {
 }
 
 function DetailPanel({ row }: { row: RowModel | null }) {
+  const [suggestionExpanded, setSuggestionExpanded] = useState(false);
+
   if (!row) {
     return (
       <aside className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
@@ -878,6 +880,20 @@ function DetailPanel({ row }: { row: RowModel | null }) {
     (hasBreakingChanges
       ? "Review breaking changes and test this update in a staging environment before upgrading."
       : "Low-friction update. Review release notes, then batch with adjacent dependency updates.");
+  const suggestionReason =
+    release.aiSummary ||
+    (hasBreakingChanges
+      ? "The collected release data identifies changes that may require updates to this project."
+      : "The collected release data does not identify breaking changes for this update.");
+  const suggestionSignals = (
+    hasBreakingChanges ? release.aiBreakingChanges : release.aiNotableChanges
+  ).slice(0, 3);
+  const suggestionEvidence =
+    release.aiEvidenceUrls.length > 0
+      ? release.aiEvidenceUrls
+      : [release.changelogUrl, release.repositoryUrl].filter(
+          (url): url is string => typeof url === "string" && url.length > 0
+        );
 
   return (
     <aside className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md ring-1 ring-slate-950/[0.03] xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-2rem)] xl:min-h-0 xl:flex-col">
@@ -956,12 +972,63 @@ function DetailPanel({ row }: { row: RowModel | null }) {
             <p className="text-sm font-semibold text-slate-950">AI Suggestion</p>
             <Badge className="border-blue-200 bg-blue-50 text-blue-700">Beta</Badge>
           </div>
-          <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-700">{suggestion}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-700">{suggestion}</p>
+          <div
+            className="mt-3 space-y-3 border-t border-blue-100 pt-3"
+            hidden={!suggestionExpanded}
+            id={`ai-suggestion-details-${row.key}`}
+          >
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Why this action
+              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-700">{suggestionReason}</p>
+            </div>
+
+            {suggestionSignals.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {hasBreakingChanges ? "Breaking changes" : "Notable changes"}
+                </p>
+                <ul className="mt-2 space-y-1.5 text-sm leading-5 text-slate-700">
+                  {suggestionSignals.map((signal) => (
+                    <li className="flex gap-2" key={signal}>
+                      <span
+                        aria-hidden="true"
+                        className="mt-2 size-1 shrink-0 rounded-full bg-blue-500"
+                      />
+                      <span>{signal}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Evidence
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {suggestionEvidence.length > 0 ? (
+                  suggestionEvidence.map((url) => (
+                    <ExternalLink href={url} key={url}>
+                      Source
+                    </ExternalLink>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-500">No evidence links were collected.</p>
+                )}
+              </div>
+            </div>
+          </div>
           <button
             className="mt-3 inline-flex min-h-8 items-center rounded-lg border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            aria-controls={`ai-suggestion-details-${row.key}`}
+            aria-expanded={suggestionExpanded}
+            onClick={() => setSuggestionExpanded((expanded) => !expanded)}
             type="button"
           >
-            View suggestion
+            {suggestionExpanded ? "Hide suggestion" : "View suggestion"}
           </button>
         </div>
       </div>
@@ -1270,7 +1337,7 @@ export default function DependencyUpdatesDashboard() {
               searchQuery={searchQuery}
               selectedKey={activeKey}
             />
-            <DetailPanel row={selectedRow} />
+            <DetailPanel key={selectedRow?.key ?? "empty"} row={selectedRow} />
           </div>
         </>
       )}

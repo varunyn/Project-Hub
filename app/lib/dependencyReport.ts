@@ -1,7 +1,26 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+  type DependencyReportSource,
+  filterDependencyReportByProject,
+  mergeDependencyReportSources,
+} from "./dependencyReportSelection";
+import type {
+  DependencyProject,
+  DependencyReleaseInfo,
+  DependencyUpdate,
+  DependencyUpdatesReport,
+} from "./dependencyReportTypes";
+
+export type {
+  DependencyProject,
+  DependencyReleaseInfo,
+  DependencyUpdate,
+  DependencyUpdatesReport,
+} from "./dependencyReportTypes";
 
 const DEFAULT_REPORT_OUTPUT_DIR = path.join(process.cwd(), "outputs");
 
@@ -11,59 +30,6 @@ export const DEPENDENCY_REPORT_COMMAND =
 
 const REPORT_FILE_RE = /^dependency-report-\d{4}-\d{2}-\d{2}\.json$/;
 const MAX_RELEASE_NOTES_EXCERPT = 900;
-
-export interface DependencyReleaseInfo {
-  currentReleaseDate: string | null;
-  latestReleaseDate: string | null;
-  homepageUrl: string | null;
-  repositoryUrl: string | null;
-  changelogUrl: string | null;
-  releaseNotesExcerpt: string | null;
-  aiPriority: string | null;
-  aiRisk: string | null;
-  aiSuggestedAction: string | null;
-  aiNotableChanges: string[];
-  aiBreakingChanges: string[];
-  aiEvidenceUrls: string[];
-  aiSummary: string | null;
-}
-
-export interface DependencyUpdate {
-  id: string;
-  ecosystem: string;
-  packageName: string;
-  currentVersion: string;
-  wantedVersion: string;
-  latestVersion: string;
-  dependencyType: string;
-  releaseInfo: DependencyReleaseInfo;
-}
-
-export interface DependencyProject {
-  path: string;
-  ecosystems: string[];
-  manifests: string[];
-  warnings: string[];
-  errors: string[];
-  updates: DependencyUpdate[];
-}
-
-export interface DependencyUpdatesReport {
-  status: "missing" | "ready";
-  generatedAt: string | null;
-  scanRoots: string[];
-  reportFileName: string | null;
-  command: string;
-  canRunReporter: boolean;
-  runMode: "host" | "server";
-  projects: DependencyProject[];
-  totals: {
-    projects: number;
-    updates: number;
-    warnings: number;
-    errors: number;
-  };
-}
 
 interface RawReport {
   generated_at?: unknown;
@@ -108,6 +74,11 @@ interface RawReleaseInfo {
 
 export function reportOutputDir(): string {
   return process.env.DEPENDENCY_REPORT_OUTPUT_DIR ?? DEFAULT_REPORT_OUTPUT_DIR;
+}
+
+export function scopedReportOutputDir(projectPath: string): string {
+  const projectHash = createHash("sha256").update(projectPath).digest("hex").slice(0, 16);
+  return path.join(reportOutputDir(), "projects", projectHash);
 }
 
 function canRunReporter(): boolean {
@@ -309,4 +280,52 @@ export async function readLatestDependencyReport(
     projects,
     totals: calculateTotals(projects),
   };
+}
+
+async function readLatestDependencyReportSource(
+  outputDir: string
+): Promise<DependencyReportSource | null> {
+  const report = await readLatestDependencyReport(outputDir);
+  if (!(report.status === "ready" && report.reportFileName)) return null;
+
+  const reportPath = path.join(/* turbopackIgnore: true */ outputDir, report.reportFileName);
+  const stats = await fs.stat(/* turbopackIgnore: true */ reportPath);
+  return { modifiedAt: stats.mtimeMs, report };
+}
+
+async function scopedReportDirectories(): Promise<string[]> {
+  const projectsDir = path.join(reportOutputDir(), "projects");
+  try {
+    const entries = await fs.readdir(projectsDir, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(projectsDir, entry.name));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+export async function readConsolidatedDependencyReport(): Promise<DependencyUpdatesReport> {
+  const scopedDirectories = await scopedReportDirectories();
+  const sources = await Promise.all(
+    [reportOutputDir(), ...scopedDirectories].map(readLatestDependencyReportSource)
+  );
+  const merged = mergeDependencyReportSources(
+    sources.filter((source): source is DependencyReportSource => source !== null)
+  );
+  return merged ?? readLatestDependencyReport();
+}
+
+export async function readDependencyReportForProject(
+  projectPath: string
+): Promise<DependencyUpdatesReport> {
+  const normalizedProjectPath = normalizeReportPath(projectPath);
+  const scopedReport = await readLatestDependencyReport(scopedReportOutputDir(projectPath));
+  if (scopedReport.status === "ready") {
+    return filterDependencyReportByProject(scopedReport, normalizedProjectPath);
+  }
+
+  const globalReport = await readLatestDependencyReport();
+  return filterDependencyReportByProject(globalReport, normalizedProjectPath);
 }
