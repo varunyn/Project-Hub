@@ -86,33 +86,45 @@ const destructive = { destructiveHint: true } as const;
 const result = (value: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
 });
-const registerTool = server.registerTool.bind(server);
-const registerPrompt = server.registerPrompt.bind(server);
+const sdkRegisterTool = server.registerTool.bind(server);
+const sdkRegisterPrompt = server.registerPrompt.bind(server);
 const statusSchema = z.enum(TASK_STATUSES as [TaskStatus, ...TaskStatus[]]);
 const prioritySchema = z.enum(TASK_PRIORITIES as [TaskPriority, ...TaskPriority[]]);
 const projectStatusSchema = z.enum(["in progress", "completed", "archived"]);
 
-interface ResolveGithubLinkToolInput {
-  project_id: string;
-  task_id: string;
-  resolution:
-    | {
-        action: "attach";
-        issue_number: number;
-        issue_url: string;
-      }
-    | {
-        action: "confirm-none";
-      };
+type ToolInputShape = Record<string, z.ZodTypeAny>;
+type ToolInput<TShape extends ToolInputShape> = {
+  [TKey in keyof TShape]: z.infer<TShape[TKey]>;
+};
+
+const invokeRegisterTool = sdkRegisterTool as unknown as (
+  name: string,
+  config: unknown,
+  handler: unknown
+) => void;
+const invokeRegisterPrompt = sdkRegisterPrompt as unknown as (
+  name: string,
+  config: unknown,
+  handler: unknown
+) => void;
+
+/** Preserve schema-derived handler types without instantiating the SDK's recursive overload. */
+function registerTypedTool<TShape extends ToolInputShape>(
+  name: string,
+  config: { inputSchema?: TShape; [key: string]: unknown },
+  handler: (input: ToolInput<TShape>) => Promise<ReturnType<typeof result>>
+): void {
+  invokeRegisterTool(name, config, handler);
 }
 
-// Keep the SDK's recursive generic overload away from this nested union. The
-// Zod schema below remains the runtime authority for validating tool input.
-const registerResolutionTool = registerTool as unknown as (
+/** Keep prompt schemas on the same Zod v3 boundary used by the MCP tools. */
+function registerTypedPrompt<TShape extends ToolInputShape>(
   name: string,
-  config: { description: string; inputSchema: Record<string, z.ZodTypeAny> },
-  handler: (input: ResolveGithubLinkToolInput) => Promise<ReturnType<typeof result>>
-) => void;
+  config: { argsSchema: TShape; [key: string]: unknown },
+  handler: (input: ToolInput<TShape>) => Promise<unknown>
+): void {
+  invokeRegisterPrompt(name, config, handler);
+}
 
 function findProject(idOrPath: string): Project | undefined {
   return getProjects().find((project) => project.id === idOrPath || project.path === idOrPath);
@@ -138,7 +150,7 @@ async function dependencyReport() {
   return readLatestDependencyReport();
 }
 
-registerTool(
+registerTypedTool(
   "list_projects",
   {
     title: "List Projects",
@@ -148,8 +160,7 @@ registerTool(
   async () => result(getProjects())
 );
 
-// @ts-expect-error TypeScript hits its instantiation-depth limit on this SDK overload.
-registerTool(
+registerTypedTool(
   "get_project",
   {
     title: "Get Project",
@@ -161,7 +172,7 @@ registerTool(
     result(getProjects().find((project) => project.id === project_id) ?? null)
 );
 
-registerTool(
+registerTypedTool(
   "search_projects",
   {
     title: "Search Projects",
@@ -190,7 +201,7 @@ registerTool(
   }
 );
 
-registerTool(
+registerTypedTool(
   "list_tasks",
   {
     title: "List Tasks",
@@ -217,7 +228,7 @@ registerTool(
   }
 );
 
-registerTool(
+registerTypedTool(
   "get_task",
   {
     title: "Get Task",
@@ -228,7 +239,7 @@ registerTool(
   async ({ task_id }) => result(findTask(task_id) ?? null)
 );
 
-registerTool(
+registerTypedTool(
   "get_dependency_report",
   {
     title: "Get Dependency Report",
@@ -238,7 +249,7 @@ registerTool(
   async () => result(await dependencyReport())
 );
 
-registerTool(
+registerTypedTool(
   "get_project_dependency_updates",
   {
     title: "Get Project Dependency Updates",
@@ -262,7 +273,7 @@ registerTool(
   }
 );
 
-registerTool(
+registerTypedTool(
   "search_dependency_updates",
   {
     title: "Search Dependency Updates",
@@ -316,8 +327,7 @@ registerTool(
   }
 );
 
-// @ts-expect-error TypeScript hits its instantiation-depth limit on this SDK overload.
-registerTool(
+registerTypedTool(
   "create_task",
   {
     description: "Create a task in an existing project.",
@@ -358,8 +368,7 @@ registerTool(
   }
 );
 
-// @ts-expect-error TypeScript hits its instantiation-depth limit on this SDK overload.
-registerTool(
+registerTypedTool(
   "update_task",
   {
     description: "Update a task by ID.",
@@ -421,7 +430,7 @@ registerTool(
   }
 );
 
-registerTool(
+registerTypedTool(
   "delete_task",
   {
     description: "Delete a task by ID.",
@@ -446,7 +455,7 @@ registerTool(
   }
 );
 
-registerTool(
+registerTypedTool(
   "retry_github_status",
   {
     description: "Retry GitHub status synchronization using the task's current local status.",
@@ -475,7 +484,7 @@ registerTool(
   }
 );
 
-registerResolutionTool(
+registerTypedTool(
   "resolve_github_link",
   {
     description:
@@ -517,8 +526,7 @@ registerResolutionTool(
   }
 );
 
-// @ts-expect-error TypeScript hits its instantiation-depth limit on this SDK overload.
-registerTool(
+registerTypedTool(
   "add_project",
   {
     description: "Add a new project.",
@@ -551,8 +559,7 @@ registerTool(
   }
 );
 
-// @ts-expect-error TypeScript hits its instantiation-depth limit on this SDK overload.
-registerTool(
+registerTypedTool(
   "update_project",
   {
     description: "Update an existing project by ID.",
@@ -581,7 +588,7 @@ registerTool(
   }
 );
 
-registerTool(
+registerTypedTool(
   "delete_project",
   {
     description: "Delete a project by ID.",
@@ -654,7 +661,7 @@ async function projectDependencyUpdates(idOrPath: string) {
   };
 }
 
-registerPrompt(
+registerTypedPrompt(
   "review_dependency_update_prompt",
   {
     description: "Guide an agent through a dependency update review.",

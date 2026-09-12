@@ -14,6 +14,10 @@
 - GitHub-linked Task status changes now save locally before synchronization, preserving the local update and durable failure details when GitHub is unavailable; no migration is required.
 - GitHub issue-linking outcomes now distinguish linked, already-linked, conflict, definite failure, and uncertain states so users can recover safely without a breaking change or migration.
 
+### Fixed
+
+- Docker builds now compile the MCP server consistently across supported Node.js environments.
+
 ## [0.4.1] - 2026-09-01
 
 ### Fixed
