@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TASK_COLUMNS, type ToastState } from "../lib/taskConstants";
 import { filterTasks } from "../lib/taskFilter";
+import type { GithubIssueLinkResult, GithubLinkResolutionResult } from "../lib/tasksApi";
 import type { Project, ProjectTask, TaskPriority, TaskStatus } from "../types";
 
 const priorityStyles: Record<TaskPriority, string> = {
@@ -10,6 +11,8 @@ const priorityStyles: Record<TaskPriority, string> = {
   medium: "text-amber-700",
   high: "text-rose-700",
 };
+
+type GithubTaskActionResult = ProjectTask | { task: ProjectTask };
 
 export interface TaskBoardProps {
   tasks: ProjectTask[];
@@ -24,7 +27,17 @@ export interface TaskBoardProps {
   githubUrl?: string;
   onConnectGithub?: () => void;
   onSyncGithub?: () => Promise<{ total: number; imported: number } | undefined>;
-  onCreateGithubIssue?: (taskId: string) => Promise<ProjectTask>;
+  onCreateGithubIssue?: (taskId: string) => Promise<GithubIssueLinkResult>;
+  onResolveGithubLink?: (
+    taskId: string,
+    resolution:
+      | { action: "attach"; issueNumber: number; issueUrl: string }
+      | { action: "confirm-none" }
+  ) => Promise<GithubLinkResolutionResult>;
+  onRetryGithubStatus?: (taskId: string) => Promise<{
+    task: ProjectTask;
+    githubSynchronization: { status: "synced" | "failed"; error?: string };
+  }>;
 }
 
 export default function TaskBoard({
@@ -41,6 +54,8 @@ export default function TaskBoard({
   onConnectGithub,
   onSyncGithub,
   onCreateGithubIssue,
+  onResolveGithubLink,
+  onRetryGithubStatus,
 }: TaskBoardProps) {
   const [localTasks, setLocalTasks] = useState<ProjectTask[]>(tasks);
   const [view, setView] = useState<"board" | "list">("board");
@@ -54,6 +69,8 @@ export default function TaskBoard({
   const [toast, setToast] = useState<ToastState | null>(null);
   const [internalError, setInternalError] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
+  const [recoveryIssueNumber, setRecoveryIssueNumber] = useState("");
+  const [recoveryIssueUrl, setRecoveryIssueUrl] = useState("");
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -113,6 +130,32 @@ export default function TaskBoard({
   );
 
   const displayedError = externalError ?? internalError;
+
+  const runGithubTaskAction = async <TResult extends GithubTaskActionResult>(
+    request: () => Promise<TResult>,
+    options: {
+      getTask: (result: TResult) => ProjectTask;
+      errorFallback: string;
+      failureAnnouncement: (message: string) => string;
+      onSuccess?: (result: TResult, updated: ProjectTask) => void;
+    }
+  ) => {
+    setPending(true);
+    try {
+      const result = await request();
+      const updated = options.getTask(result);
+      setLocalTasks((current) => current.map((task) => (task.id === updated.id ? updated : task)));
+      if (selectedTask?.id === updated.id) setSelectedTask(updated);
+      setInternalError(null);
+      options.onSuccess?.(result, updated);
+    } catch (requestError) {
+      const message = requestError instanceof Error ? requestError.message : options.errorFallback;
+      setInternalError(message);
+      announce(options.failureAnnouncement(message), "danger");
+    } finally {
+      setPending(false);
+    }
+  };
 
   const handleCreateTask = async () => {
     if (!onCreateTask) return;
@@ -223,20 +266,61 @@ export default function TaskBoard({
 
   const handleCreateGithubIssue = async (taskId: string) => {
     if (!onCreateGithubIssue) return;
-    setPending(true);
-    try {
-      const updated = await onCreateGithubIssue(taskId);
-      setLocalTasks((current) => current.map((task) => (task.id === updated.id ? updated : task)));
-      if (selectedTask?.id === updated.id) setSelectedTask(updated);
-      setInternalError(null);
-    } catch (requestError) {
-      const message =
-        requestError instanceof Error ? requestError.message : "Unable to create GitHub issue";
-      setInternalError(message);
-      announce(`GitHub issue creation failed — ${message}`, "danger");
-    } finally {
-      setPending(false);
-    }
+    await runGithubTaskAction(() => onCreateGithubIssue(taskId), {
+      getTask: (result) => ("task" in result ? result.task : result),
+      errorFallback: "Unable to create GitHub issue",
+      failureAnnouncement: (message) => `GitHub issue creation failed — ${message}`,
+      onSuccess: (result) => {
+        if ("status" in result && result.status === "partial")
+          announce("GitHub issue created — attach the existing issue to finish linking.", "info");
+        else if ("status" in result && result.status === "uncertain")
+          announce(
+            "GitHub issue creation has an uncertain outcome; resolve it before retrying.",
+            "danger"
+          );
+      },
+    });
+  };
+
+  const handleRetryGithubStatus = async (taskId: string) => {
+    if (!onRetryGithubStatus) return;
+    await runGithubTaskAction(() => onRetryGithubStatus(taskId), {
+      getTask: (result) => result.task,
+      errorFallback: "Unable to retry GitHub status",
+      failureAnnouncement: (message) => `GitHub status retry failed — ${message}`,
+      onSuccess: (result) => {
+        announce(
+          result.githubSynchronization.status === "synced"
+            ? "GitHub status is synchronized with the current local status."
+            : `GitHub status retry failed — ${result.githubSynchronization.error ?? "Try again later."}`,
+          result.githubSynchronization.status === "synced" ? "success" : "danger"
+        );
+      },
+    });
+  };
+
+  const handleResolveGithubLink = async (
+    taskId: string,
+    resolution:
+      | { action: "attach"; issueNumber: number; issueUrl: string }
+      | { action: "confirm-none" }
+  ) => {
+    if (!onResolveGithubLink) return;
+    await runGithubTaskAction(() => onResolveGithubLink(taskId, resolution), {
+      getTask: (result) => result.task,
+      errorFallback: "Unable to resolve GitHub issue link",
+      failureAnnouncement: (message) => `GitHub link resolution failed — ${message}`,
+      onSuccess: (result) => {
+        setRecoveryIssueNumber("");
+        setRecoveryIssueUrl("");
+        announce(
+          "resolution" in result
+            ? "Reservation cleared. You can create a new GitHub issue if needed."
+            : "Verified GitHub issue attached and status synchronization started.",
+          "success"
+        );
+      },
+    });
   };
 
   const handleSelectedTaskChange = (changes: Partial<ProjectTask>) => {
@@ -576,6 +660,90 @@ export default function TaskBoard({
                     >
                       Open GitHub issue #{selectedTask.githubIssueNumber}
                     </a>
+                  ) : selectedTask.githubLinkReservation?.state === "uncertain" ? (
+                    <div className="space-y-3 text-amber-900" role="status">
+                      <p>
+                        GitHub issue creation has an uncertain outcome. Do not retry yet: choose an
+                        explicit recovery action below to avoid creating a duplicate.
+                      </p>
+                      {onResolveGithubLink && (
+                        <>
+                          <label className="block text-xs font-semibold">
+                            Verified issue number
+                            <input
+                              value={recoveryIssueNumber}
+                              onChange={(event) => setRecoveryIssueNumber(event.target.value)}
+                              inputMode="numeric"
+                              className="mt-1 w-full rounded border border-amber-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-800"
+                            />
+                          </label>
+                          <label className="block text-xs font-semibold">
+                            Verified issue URL
+                            <input
+                              value={recoveryIssueUrl}
+                              onChange={(event) => setRecoveryIssueUrl(event.target.value)}
+                              placeholder="https://github.com/owner/repo/issues/123"
+                              className="mt-1 w-full rounded border border-amber-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-800"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            disabled={pending || !recoveryIssueNumber || !recoveryIssueUrl}
+                            onClick={() =>
+                              handleResolveGithubLink(selectedTask.id, {
+                                action: "attach",
+                                issueNumber: Number(recoveryIssueNumber),
+                                issueUrl: recoveryIssueUrl,
+                              })
+                            }
+                            className="min-h-9 rounded border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold hover:bg-amber-100 disabled:opacity-60"
+                          >
+                            Attach verified issue (no new issue)
+                          </button>
+                          <button
+                            type="button"
+                            disabled={pending}
+                            onClick={() =>
+                              handleResolveGithubLink(selectedTask.id, { action: "confirm-none" })
+                            }
+                            className="ml-2 min-h-9 rounded border border-amber-300 px-2.5 py-1 text-xs font-semibold hover:bg-amber-100 disabled:opacity-60"
+                          >
+                            I verified no issue was created
+                          </button>
+                          <p className="text-xs">
+                            Attaching links this Task to the issue you provide; confirming none
+                            clears this reservation and allows a later fresh creation.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  ) : selectedTask.githubLinkReservation?.state === "creating" ? (
+                    <p className="text-slate-600" role="status">
+                      GitHub issue linking is in progress. Please wait before trying again.
+                    </p>
+                  ) : selectedTask.githubLinkReservation?.state === "partial" ? (
+                    <div className="text-amber-900" role="status">
+                      GitHub issue #{selectedTask.githubLinkReservation.issueNumber} was created,
+                      but local linking needs recovery.
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => handleCreateGithubIssue(selectedTask.id)}
+                        className="ml-1 font-semibold underline disabled:opacity-60"
+                      >
+                        Attach created issue (no new issue)
+                      </button>
+                      {selectedTask.githubLinkReservation.issueUrl && (
+                        <a
+                          className="ml-1 underline"
+                          href={selectedTask.githubLinkReservation.issueUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open issue
+                        </a>
+                      )}
+                    </div>
                   ) : (
                     <button
                       type="button"
@@ -584,6 +752,28 @@ export default function TaskBoard({
                       className="font-semibold text-slate-700 hover:text-sky-700 disabled:opacity-60"
                     >
                       Create GitHub issue
+                    </button>
+                  )}
+                </div>
+              )}
+              {selectedTask.githubSynchronization?.state === "failed" && (
+                <div
+                  className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+                  role="status"
+                >
+                  <p className="font-semibold">GitHub status sync failed</p>
+                  <p className="mt-1">
+                    Your local status was saved.{" "}
+                    {selectedTask.githubSynchronization.error ?? "Try again later."}
+                  </p>
+                  {onRetryGithubStatus && selectedTask.githubIssueNumber !== undefined && (
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => handleRetryGithubStatus(selectedTask.id)}
+                      className="mt-3 min-h-10 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                    >
+                      {pending ? "Retrying…" : "Retry current status"}
                     </button>
                   )}
                 </div>

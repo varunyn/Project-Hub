@@ -19,7 +19,11 @@ export function useAllTasks() {
 
   const updateTask = useCallback(
     async (task: ProjectTask, changes: Partial<ProjectTask>) => {
-      await updateProjectTask(task.projectId, task.id, changes);
+      const updated = await updateProjectTask(task.projectId, task.id, changes);
+      mutate(
+        (current) => (current ?? []).map((item) => (item.id === updated.id ? updated : item)),
+        false
+      );
       mutate();
     },
     [mutate]
@@ -35,7 +39,11 @@ export function useAllTasks() {
 
   const moveTask = useCallback(
     async (task: ProjectTask, status: TaskStatus) => {
-      await updateProjectTask(task.projectId, task.id, { status });
+      const updated = await updateProjectTask(task.projectId, task.id, { status });
+      mutate(
+        (current) => (current ?? []).map((item) => (item.id === updated.id ? updated : item)),
+        false
+      );
       mutate();
     },
     [mutate]

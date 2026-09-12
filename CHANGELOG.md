@@ -1,5 +1,19 @@
 ## [Unreleased]
 
+### Added
+
+- Project task workspaces can now retry failed GitHub status synchronization against the current local status, with the durable result shown after the retry; no migration is required.
+- GitHub issue linking now reserves a Task before creation and recovers known partial links without creating duplicates; no migration is required.
+- Tasks with a known partial GitHub link now offer an explicit “Attach created issue (no new issue)” recovery action; no migration is required.
+- Tasks with an uncertain GitHub link now offer explicit verified-issue attachment or “no issue was created” recovery choices; this is non-breaking and requires no migration.
+
+### Changed
+
+- Web and MCP task creation now share validation, defaults, identity, timestamps, and lock-safe ordering so equivalent requests produce consistent Tasks without breaking existing inputs or requiring migration.
+- Web and MCP task updates and deletion now share atomic validation, project ownership, and contiguous lane ordering; linked GitHub issues remain untouched and no migration is required.
+- GitHub-linked Task status changes now save locally before synchronization, preserving the local update and durable failure details when GitHub is unavailable; no migration is required.
+- GitHub issue-linking outcomes now distinguish linked, already-linked, conflict, definite failure, and uncertain states so users can recover safely without a breaking change or migration.
+
 ## [0.4.1] - 2026-09-01
 
 ### Fixed

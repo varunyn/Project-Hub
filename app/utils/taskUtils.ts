@@ -14,14 +14,32 @@ function ensureTasksFile() {
   if (!fs.existsSync(tasksFilePath)) fs.writeFileSync(tasksFilePath, "[]", "utf8");
 }
 
-export function getTasks(): ProjectTask[] {
+export type StoredProjectTask = ProjectTask & {
+  _githubSyncAttemptId?: string;
+  _githubLinkReservationId?: string;
+};
+
+function readTasksRaw(): StoredProjectTask[] {
   ensureTasksFile();
   try {
-    return JSON.parse(fs.readFileSync(tasksFilePath, "utf8")) as ProjectTask[];
+    return JSON.parse(fs.readFileSync(tasksFilePath, "utf8")) as StoredProjectTask[];
   } catch (error) {
     console.error("Error reading tasks:", error);
     return [];
   }
+}
+
+function sanitizeTask(task: StoredProjectTask): ProjectTask {
+  const {
+    _githubSyncAttemptId: _ignoredAttempt,
+    _githubLinkReservationId: _ignoredReservation,
+    ...publicTask
+  } = task;
+  return publicTask;
+}
+
+export function getTasks(): ProjectTask[] {
+  return readTasksRaw().map(sanitizeTask);
 }
 
 function saveTasks(tasks: ProjectTask[]) {
@@ -62,7 +80,21 @@ export function getAllTasks(): ProjectTask[] {
 export async function createTask(task: ProjectTask): Promise<ProjectTask> {
   return queueTaskWrite(() =>
     withFileLock(tasksFilePath, () => {
-      const tasks = getTasks();
+      const tasks = readTasksRaw();
+      saveTasks([...tasks, task]);
+      return task;
+    })
+  );
+}
+
+/** Create a task from the current file contents while the real file lock is held. */
+export async function createTaskInLock<T extends ProjectTask>(
+  create: (tasks: ProjectTask[]) => T
+): Promise<T> {
+  return queueTaskWrite(() =>
+    withFileLock(tasksFilePath, () => {
+      const tasks = readTasksRaw();
+      const task = create(tasks);
       saveTasks([...tasks, task]);
       return task;
     })
@@ -76,7 +108,7 @@ export async function updateTask(
 ): Promise<ProjectTask | null> {
   return queueTaskWrite(() =>
     withFileLock(tasksFilePath, () => {
-      const tasks = getTasks();
+      const tasks = readTasksRaw();
       const existing = tasks.find((task) => task.id === taskId && task.projectId === projectId);
       if (!existing) return null;
       const updated = { ...existing, ...changes, updatedAt: new Date().toISOString() };
@@ -110,16 +142,97 @@ export async function updateTask(
   );
 }
 
+/** Update only when the current task still carries the expected internal sync attempt. */
+export async function updateTaskIfSyncAttempt(
+  projectId: string,
+  taskId: string,
+  attemptId: string,
+  changes: Partial<ProjectTask>
+): Promise<ProjectTask | null> {
+  return queueTaskWrite(() =>
+    withFileLock(tasksFilePath, () => {
+      const tasks = readTasksRaw();
+      const existing = tasks.find((task) => task.id === taskId && task.projectId === projectId);
+      if (
+        !existing ||
+        (existing as ProjectTask & { _githubSyncAttemptId?: string })._githubSyncAttemptId !==
+          attemptId
+      )
+        return null;
+      const updated = { ...existing, ...changes, updatedAt: new Date().toISOString() };
+      saveTasks(
+        tasks.map((task) => (task.id === taskId && task.projectId === projectId ? updated : task))
+      );
+      return updated;
+    })
+  );
+}
+
+/** Run a Task transition while holding the same durable lock used by all writes. */
+export async function updateTaskInLock<T>(
+  projectId: string,
+  taskId: string,
+  transition: (task: StoredProjectTask) => { task: StoredProjectTask; result: T } | null
+): Promise<{ task: ProjectTask; result: T } | null> {
+  return queueTaskWrite(() =>
+    withFileLock(tasksFilePath, () => {
+      const tasks = readTasksRaw();
+      const existing = tasks.find((task) => task.id === taskId && task.projectId === projectId);
+      if (!existing) return null;
+      const next = transition(existing);
+      if (!next) return null;
+      saveTasks(
+        tasks.map((task) => (task.id === taskId && task.projectId === projectId ? next.task : task))
+      );
+      return { task: sanitizeTask(next.task), result: next.result };
+    })
+  );
+}
+
 export async function deleteTask(projectId: string, taskId: string): Promise<boolean> {
   return queueTaskWrite(() =>
     withFileLock(tasksFilePath, () => {
-      const tasks = getTasks();
+      const tasks = readTasksRaw();
       const remaining = tasks.filter(
         (task) => !(task.id === taskId && task.projectId === projectId)
       );
       if (remaining.length === tasks.length) return false;
-      saveTasks(remaining);
+      const normalizedProjectTasks = normalizeProjectTaskPositions(remaining, projectId);
+      const normalizedIds = new Set(normalizedProjectTasks.map((task) => task.id));
+      saveTasks(
+        [
+          ...remaining.filter((task) => task.projectId !== projectId),
+          ...normalizedProjectTasks,
+        ].filter((task) => task.projectId !== projectId || normalizedIds.has(task.id))
+      );
       return true;
+    })
+  );
+}
+
+/** Delete only when the task is still free of a GitHub link reservation. */
+export async function deleteTaskIfNoGithubReservation(
+  projectId: string,
+  taskId: string
+): Promise<"deleted" | "missing" | "reserved"> {
+  return queueTaskWrite(() =>
+    withFileLock(tasksFilePath, () => {
+      const tasks = readTasksRaw();
+      const existing = tasks.find((task) => task.id === taskId && task.projectId === projectId);
+      if (!existing) return "missing";
+      if (existing.githubLinkReservation) return "reserved";
+      const remaining = tasks.filter(
+        (task) => !(task.id === taskId && task.projectId === projectId)
+      );
+      const normalizedProjectTasks = normalizeProjectTaskPositions(remaining, projectId);
+      const normalizedIds = new Set(normalizedProjectTasks.map((task) => task.id));
+      saveTasks(
+        [
+          ...remaining.filter((task) => task.projectId !== projectId),
+          ...normalizedProjectTasks,
+        ].filter((task) => task.projectId !== projectId || normalizedIds.has(task.id))
+      );
+      return "deleted";
     })
   );
 }

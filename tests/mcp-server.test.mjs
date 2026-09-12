@@ -127,15 +127,14 @@ function decodeTool(response) {
   return JSON.parse(response.result.content[0].text);
 }
 
-async function withServer(projects, callback, { report } = {}) {
+async function withServer(projects, callback, { report, extraEnv = {} } = {}) {
   const { dataDir, cwd } = await createTestStorage(projects);
   const reportDir = report ? await mkdtemp(join(tmpdir(), "project-hub-mcp-report-")) : undefined;
   if (report) await writeFile(join(reportDir, report.name), JSON.stringify(report.value));
-  const server = startServer(
-    dataDir,
-    cwd,
-    reportDir ? { DEPENDENCY_REPORT_OUTPUT_DIR: reportDir } : {}
-  );
+  const server = startServer(dataDir, cwd, {
+    ...(reportDir ? { DEPENDENCY_REPORT_OUTPUT_DIR: reportDir } : {}),
+    ...extraEnv,
+  });
   try {
     await initializeServer(server);
     return await callback(server, { dataDir, reportDir });
@@ -221,6 +220,25 @@ async function seedTasks(dataDir, values = tasks) {
   await writeFile(join(dataDir, "tasks.json"), JSON.stringify(values));
 }
 
+function uncertainTask(id = "recover") {
+  return {
+    id,
+    projectId: "alpha",
+    title: "Recover GitHub link",
+    description: "",
+    status: "todo",
+    priority: "medium",
+    assigneeId: "",
+    labels: [],
+    dueDate: "",
+    position: 0,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+    githubLinkReservation: { state: "uncertain", reservedAt: "2026-01-01T00:00:00Z" },
+    _githubLinkReservationId: "reservation-1",
+  };
+}
+
 test("compiled MCP server initializes from an absolute path outside the repository", async () => {
   const { dataDir, cwd } = await createTestStorage([
     {
@@ -250,6 +268,63 @@ test("compiled MCP server initializes from an absolute path outside the reposito
       rm(cwd, { recursive: true, force: true }),
     ]);
   }
+});
+
+test("MCP resolve_github_link supports verified attachment and explicit empty confirmation", async () => {
+  const project = { ...projects[0], githubUrl: "https://github.com/acme/app" };
+  await withServer([project], async (server, { dataDir }) => {
+    await seedTasks(dataDir, [uncertainTask()]);
+    const response = decodeTool(
+      await server.request("tools/call", {
+        name: "resolve_github_link",
+        arguments: {
+          project_id: "alpha",
+          task_id: "recover",
+          resolution: {
+            action: "attach",
+            issue_number: 42,
+            issue_url: "https://github.com/acme/app/issues/42",
+          },
+        },
+      })
+    );
+    assert.equal(response.task.githubIssueNumber, 42);
+    assert.equal(response.task.githubLinkReservation, undefined);
+  });
+
+  await withServer([project], async (server, { dataDir }) => {
+    await seedTasks(dataDir, [uncertainTask("clear")]);
+    const response = decodeTool(
+      await server.request("tools/call", {
+        name: "resolve_github_link",
+        arguments: {
+          project_id: "alpha",
+          task_id: "clear",
+          resolution: { action: "confirm-none" },
+        },
+      })
+    );
+    assert.equal(response.resolution, "cleared");
+    assert.equal(response.task.githubLinkReservation, undefined);
+  });
+});
+
+test("MCP resolve_github_link reports invalid or missing reservations transport-neutrally", async () => {
+  await withServer(projects, async (server, { dataDir }) => {
+    await seedTasks(dataDir, [tasks[0]]);
+    const response = decodeTool(
+      await server.request("tools/call", {
+        name: "resolve_github_link",
+        arguments: {
+          project_id: "alpha",
+          task_id: "a1",
+          resolution: { action: "confirm-none" },
+        },
+      })
+    );
+    assert.equal(response.code, "github_link_not_uncertain");
+    assert.match(response.error, /uncertain GitHub link/);
+  });
 });
 
 test("update_project preserves omitted fields in the response and projects.json", async () => {
@@ -320,11 +395,31 @@ test("task and project tools preserve scope and workflow semantics", async () =>
         name: "create_task",
         arguments: {
           project_id: "alpha",
-          title: "First review",
+          title: "  First review  ",
+          description: "MCP-created details",
           status: "review",
           priority: "high",
+          assignee_id: "agent",
+          labels: ["mcp", "review"],
+          due_date: "2026-02-03",
         },
       })
+    );
+    assert.deepEqual(
+      {
+        title: firstReview.title,
+        description: firstReview.description,
+        assigneeId: firstReview.assigneeId,
+        labels: firstReview.labels,
+        dueDate: firstReview.dueDate,
+      },
+      {
+        title: "First review",
+        description: "MCP-created details",
+        assigneeId: "agent",
+        labels: ["mcp", "review"],
+        dueDate: "2026-02-03",
+      }
     );
     const secondReview = decodeTool(
       await server.request("tools/call", {
@@ -380,6 +475,92 @@ test("task and project tools preserve scope and workflow semantics", async () =>
       null
     );
   });
+});
+
+test("MCP update_task returns a Task-shaped local success when linked GitHub sync is unavailable", async () => {
+  const linkedProject = {
+    ...projects[0],
+    githubUrl: "https://github.com/a/r",
+  };
+  await withServer(
+    [linkedProject],
+    async (server, { dataDir }) => {
+      await seedTasks(dataDir, [
+        {
+          id: "linked",
+          projectId: "alpha",
+          title: "Linked",
+          description: "",
+          status: "todo",
+          priority: "medium",
+          assigneeId: "",
+          labels: [],
+          dueDate: "",
+          position: 0,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          githubIssueNumber: 4,
+        },
+      ]);
+      const updated = decodeTool(
+        await server.request("tools/call", {
+          name: "update_task",
+          arguments: { task_id: "linked", status: "review" },
+        })
+      );
+      assert.equal(updated.status, "review");
+      assert.equal(updated.githubSynchronization.state, "failed");
+      assert.equal(updated.githubSynchronization.error, "GitHub synchronization is not configured");
+      assert.equal(Object.hasOwn(updated, "githubSynchronizationOutcome"), false);
+      assert.equal(Object.hasOwn(updated, "_githubSyncAttemptId"), false);
+      const stored = JSON.parse(await readFile(join(dataDir, "tasks.json")))[0];
+      assert.equal(stored.status, "review");
+      assert.equal(stored.githubSynchronization.state, "failed");
+      assert.equal(Object.hasOwn(stored, "_githubSyncAttemptId"), false);
+    },
+    { extraEnv: { GITHUB_TOKEN: "" } }
+  );
+});
+
+test("MCP retry_github_status returns an explicit durable failure outcome", async () => {
+  const linkedProject = { ...projects[0], githubUrl: "https://github.com/a/r" };
+  await withServer(
+    [linkedProject],
+    async (server, { dataDir }) => {
+      await seedTasks(dataDir, [
+        {
+          id: "retry-task",
+          projectId: "alpha",
+          title: "Retry me",
+          description: "",
+          status: "review",
+          priority: "medium",
+          assigneeId: "",
+          labels: [],
+          dueDate: "",
+          position: 0,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          githubIssueNumber: 4,
+          githubSynchronization: {
+            state: "failed",
+            attemptedAt: "old",
+            error: "GitHub synchronization failed",
+          },
+        },
+      ]);
+      const outcome = decodeTool(
+        await server.request("tools/call", {
+          name: "retry_github_status",
+          arguments: { project_id: "alpha", task_id: "retry-task" },
+        })
+      );
+      assert.equal(outcome.task.status, "review");
+      assert.equal(outcome.task.githubSynchronization.state, "failed");
+      assert.equal(outcome.github_synchronization.status, "failed");
+    },
+    { extraEnv: { GITHUB_TOKEN: "" } }
+  );
 });
 
 const dependencyReport = {

@@ -17,6 +17,7 @@
     "../app/utils/fileLock.ts",
     "../app/utils/projectUtils.ts",
     "../app/utils/taskUtils.ts",
+    "../app/lib/taskWorkflow.ts",
     "../app/lib/dependencyReport.ts"
   ]
 }

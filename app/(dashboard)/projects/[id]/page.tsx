@@ -55,6 +55,8 @@ export default function ProjectDetailPage() {
     moveTask,
     syncGithub,
     createGithubIssue,
+    retryGithubTaskStatus,
+    resolveGithubTaskLink,
   } = useProjectTasks(id);
   const [copyPathFeedback, setCopyPathFeedback] = useState(false);
   const [tagInput, setTagInput] = useState("");
@@ -386,6 +388,8 @@ export default function ProjectDetailPage() {
           onConnectGithub={() => router.replace(`/projects/${project.id}?edit=1`)}
           onSyncGithub={syncGithub}
           onCreateGithubIssue={createGithubIssue}
+          onResolveGithubLink={resolveGithubTaskLink}
+          onRetryGithubStatus={retryGithubTaskStatus}
         />
       ) : (
         <>
